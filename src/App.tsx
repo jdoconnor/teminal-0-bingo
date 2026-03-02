@@ -27,6 +27,9 @@ export default function App() {
       return;
     }
     
+    // Set room code from URL immediately - this is the source of truth
+    setRoomCode(urlRoomCode);
+    
     // Connect to WebSocket
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
@@ -44,11 +47,7 @@ export default function App() {
           setGameState(message.state);
         } else if (message.type === 'WELCOME') {
           setPlayerId(message.playerId);
-          setRoomCode(message.roomCode);
-          // Update URL hash with room code for sharing (only if not already set)
-          if (message.roomCode && message.roomCode !== 'default' && !window.location.hash) {
-            window.location.hash = message.roomCode;
-          }
+          // Room code already set from URL - don't override it
         } else if (message.type === 'ERROR') {
           setError(message.message);
         }
