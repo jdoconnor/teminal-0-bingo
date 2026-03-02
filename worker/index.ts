@@ -21,7 +21,6 @@ const generateRoomCode = (): string => {
 const createInitialState = (): GameState => ({
   status: 'waiting',
   players: [],
-  calledItems: [],
   winner: null,
   roomCode: generateRoomCode(),
   createdAt: Date.now(),
@@ -171,10 +170,10 @@ export class GameRoom extends DurableObject<Env> {
         await this.handleStart();
       } else if (data.type === 'MARK') {
         await this.handleMark(connection.playerId, data.index);
-      } else if (data.type === 'CALL_ITEM') {
-        await this.handleCallItem();
       } else if (data.type === 'REGENERATE_CARD') {
         await this.handleRegenerateCard(connection.playerId);
+      } else if (data.type === 'TOGGLE_SEEN') {
+        await this.handleToggleSeen(connection.playerId, data.item);
       }
     } catch (error) {
       ws.send(JSON.stringify(errorMessage('Invalid payload')));
@@ -213,6 +212,7 @@ export class GameRoom extends DurableObject<Env> {
         name: safeName,
         card: generateCard(),
         marked: new Array(25).fill(false),
+        seen: [], // Don't mark center until game starts
         hasBingo: false,
       } satisfies Player;
       this.gameState.players.push(player);
@@ -229,15 +229,20 @@ export class GameRoom extends DurableObject<Env> {
     }
 
     this.gameState.status = 'playing';
-    this.gameState.calledItems = [];
     this.gameState.winner = null;
 
-    this.gameState.players = this.gameState.players.map(player => ({
-      ...player,
-      card: generateCard(),
-      marked: new Array(25).fill(false),
-      hasBingo: false,
-    }));
+    this.gameState.players = this.gameState.players.map(player => {
+      const card = generateCard();
+      const marked = new Array(25).fill(false);
+      marked[12] = true; // Center tile is free
+      return {
+        ...player,
+        card,
+        marked,
+        seen: [card[12]], // Center tile (index 12) is free
+        hasBingo: false,
+      };
+    });
 
     await this.persistAndBroadcast();
   }
@@ -247,17 +252,8 @@ export class GameRoom extends DurableObject<Env> {
       return;
     }
 
-    if (index < 0 || index >= 25) {
-      return;
-    }
-
     const player = this.gameState.players.find(p => p.id === playerId);
     if (!player) return;
-
-    const item = player.card[index];
-    if (!this.gameState.calledItems.includes(item)) {
-      return;
-    }
 
     player.marked[index] = true;
 
@@ -266,23 +262,6 @@ export class GameRoom extends DurableObject<Env> {
       this.gameState.winner = player.name;
       this.gameState.status = 'ended';
     }
-
-    await this.persistAndBroadcast();
-  }
-
-  private async handleCallItem() {
-    if (this.gameState.status !== 'playing') return;
-
-    const availableItems = SIGHTINGS.filter(item => !this.gameState.calledItems.includes(item));
-
-    if (availableItems.length === 0) {
-      this.gameState.status = 'ended';
-      await this.persistAndBroadcast();
-      return;
-    }
-
-    const nextItem = availableItems[Math.floor(Math.random() * availableItems.length)];
-    this.gameState.calledItems.push(nextItem);
 
     await this.persistAndBroadcast();
   }
@@ -297,9 +276,40 @@ export class GameRoom extends DurableObject<Env> {
     }
 
     // Generate new card and reset marked items
-    player.card = generateCard();
-    player.marked = new Array(25).fill(false);
+    const card = generateCard();
+    const marked = new Array(25).fill(false);
+    marked[12] = true; // Center tile is free
+    player.card = card;
+    player.marked = marked;
+    player.seen = [card[12]]; // Center tile (index 12) is free
     player.hasBingo = false;
+
+    await this.persistAndBroadcast();
+  }
+
+  private async handleToggleSeen(playerId: string, item: string) {
+    const player = this.gameState.players.find(p => p.id === playerId);
+    if (!player) return;
+
+    // Toggle the item in the seen array
+    const seenIndex = player.seen.indexOf(item);
+    if (seenIndex >= 0) {
+      // Item is already seen, remove it (mark as unseen)
+      player.seen.splice(seenIndex, 1);
+    } else {
+      // Item is not seen, add it
+      player.seen.push(item);
+    }
+
+    // Update marked array for bingo detection (only items on their card that are seen)
+    player.marked = player.card.map(cardItem => player.seen.includes(cardItem));
+
+    // Check for bingo
+    if (checkBingo(player.marked)) {
+      player.hasBingo = true;
+      this.gameState.winner = player.name;
+      this.gameState.status = 'ended';
+    }
 
     await this.persistAndBroadcast();
   }

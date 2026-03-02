@@ -92,32 +92,32 @@ Client sends MARK → Server validates and checks for bingo
 6. Server broadcasts updated state to all clients
 
 ### 2. **Starting the Game**
-1. Any player clicks "Initiate Sequence" → sends `START` message
+1. Any player clicks "Start Game" → sends `START` message
 2. Server:
    - Sets `status` to `'playing'`
-   - Resets `calledItems` and `winner`
+   - Resets `winner`
    - Generates new random cards for all players
+   - Center tile (index 12) is automatically marked as "free space"
 3. Server broadcasts updated state
-4. Players manually call items by clicking "Call Next Sighting" button
+4. Players can now tap any tile on their card to mark it as seen
 
 ### 3. **Gameplay Loop**
-1. Any player clicks "Call Next Sighting" button → sends `CALL_ITEM` message
-2. Server picks random uncalled item from `SIGHTINGS`
-3. Server adds item to `calledItems` array
-4. Server broadcasts state → all clients see new called item
-5. Players click items on their cards if they match called items
-6. Client sends `MARK` with index → server validates:
-   - Item at that index must be in `calledItems`
-   - Player's `marked[index]` set to `true`
-   - Server checks for bingo (row/column/diagonal)
-7. If bingo detected:
+1. Players tap any tile on their bingo card → sends `TOGGLE_SEEN` message with item text
+2. Server toggles item in player's `seen` array:
+   - If item already in `seen`, remove it (mark as unseen)
+   - If item not in `seen`, add it (mark as seen)
+3. Server updates `marked` array based on which card items are in `seen`
+4. Server checks for bingo (row/column/diagonal)
+5. If bingo detected:
    - Set `player.hasBingo = true`
    - Set `gameState.winner = player.name`
    - Set `status = 'ended'`
+6. Server broadcasts state → all clients update
+7. Sighting log shows all items marked as seen by any player
 
 ### 4. **Winning & Reset**
 1. Winner overlay appears for all players
-2. Any player can click "Reset Simulation" → sends `START`
+2. Any player can click "Restart Game" → sends `START`
 3. Game resets with new cards and begins again
 
 ---
@@ -155,7 +155,7 @@ Client sends MARK → Server validates and checks for bingo
 - **Diagonals**: 
   - Top-left to bottom-right: indices 0,6,12,18,24
   - Top-right to bottom-left: indices 4,8,12,16,20
-- **No free space** - all 25 cells must be marked to complete a pattern
+- **Free center space** - index 12 (center tile) starts pre-marked for all players
 
 ### Card Generation
 - Each player gets 25 random items from the 50-item `SIGHTINGS` pool

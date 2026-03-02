@@ -96,9 +96,9 @@ export default function App() {
     }
   };
 
-  const handleCallItem = () => {
+  const handleToggleSeen = (item: string) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify({ type: 'CALL_ITEM' }));
+      ws.current.send(JSON.stringify({ type: 'TOGGLE_SEEN', item }));
     }
   };
 
@@ -223,20 +223,12 @@ export default function App() {
         <div className="w-full md:w-1/3 lg:w-1/4 bg-zinc-800/50 border-t md:border-t-0 md:border-r border-zinc-700 p-2 sm:p-4 flex flex-col space-y-2 sm:space-y-4 overflow-y-auto max-h-[40vh] md:max-h-full">
           <div className="bg-zinc-900 p-3 sm:p-4 rounded border border-zinc-700 space-y-2">
             <h2 className="text-xs uppercase tracking-widest text-zinc-500 mb-2">Mission Control</h2>
-            {gameState.status === 'waiting' || gameState.status === 'ended' ? (
+            {(gameState.status === 'waiting' || gameState.status === 'ended') && (
               <button
                 onClick={handleStart}
                 className="w-full bg-emerald-600 hover:bg-emerald-500 text-zinc-900 font-bold py-2 px-4 rounded transition-colors uppercase tracking-wide text-xs sm:text-sm"
               >
-                {gameState.status === 'ended' ? 'Re-Initialize Sequence' : 'Initiate Sequence'}
-              </button>
-            ) : (
-              <button
-                onClick={handleCallItem}
-                className="w-full bg-yellow-600 hover:bg-yellow-500 text-zinc-900 font-bold py-2 px-4 rounded transition-colors uppercase tracking-wide text-xs sm:text-sm"
-                data-testid="call-item-button"
-              >
-                Call Next Sighting
+                {gameState.status === 'ended' ? 'Restart Game' : 'Start Game'}
               </button>
             )}
             {(gameState.status === 'waiting' || gameState.status === 'playing') && (
@@ -250,7 +242,7 @@ export default function App() {
             )}
           </div>
 
-          <GameLog calledItems={gameState.calledItems} />
+          <GameLog players={gameState.players} />
 
           <div className="bg-zinc-900 p-3 sm:p-4 rounded border border-zinc-700 flex-1 min-h-[100px]">
              <h2 className="text-xs uppercase tracking-widest text-zinc-500 mb-2">Manifest</h2>
@@ -271,9 +263,8 @@ export default function App() {
             {showCards ? (
               <BingoCard
                 card={player.card}
-                marked={player.marked}
-                calledItems={gameState.calledItems}
-                onMark={handleMark}
+                seen={player.seen}
+                onToggleSeen={handleToggleSeen}
                 disabled={gameState.status !== 'playing' || player.hasBingo}
               />
             ) : (
@@ -285,7 +276,7 @@ export default function App() {
                   {gameState.players.length === 1 ? (
                     <>Share the room code with other players to begin</>
                   ) : (
-                    <>Any player can click "Initiate Sequence" to start the game</>
+                    <>Any player can click "Start Game" to begin</>
                   )}
                 </div>
               </div>
@@ -306,7 +297,7 @@ export default function App() {
                   animate={{ scale: 1, y: 0 }}
                   className="bg-zinc-800 border-2 border-emerald-500 p-6 sm:p-8 rounded-lg shadow-2xl max-w-md text-center w-full"
                 >
-                  <h2 className="text-2xl sm:text-4xl font-bold text-emerald-400 mb-2 tracking-tighter">SEQUENCE COMPLETE</h2>
+                  <h2 className="text-2xl sm:text-4xl font-bold text-emerald-400 mb-2 tracking-tighter">GAME OVER</h2>
                   <p className="text-zinc-300 mb-6 text-sm sm:text-base">
                     Passenger <span className="text-white font-bold">{gameState.winner}</span> has successfully identified the pattern.
                   </p>
@@ -314,7 +305,7 @@ export default function App() {
                     onClick={handleStart}
                     className="w-full bg-emerald-600 hover:bg-emerald-500 text-zinc-900 font-bold py-3 px-6 rounded transition-colors uppercase tracking-wide text-sm"
                   >
-                    Reset Simulation
+                    Restart Game
                   </button>
                 </motion.div>
               </motion.div>

@@ -42,17 +42,17 @@ Since the game uses Cloudflare Workers + Durable Objects, the easiest way to tes
 #### Basic Two-Player Flow
 - [ ] Both players can connect and join with different names
 - [ ] Both players see each other in the "Manifest" sidebar
-- [ ] Either player can click "Initiate Sequence" to start the game
+- [ ] Either player can click "Start Game" to start the game
 - [ ] Both players receive new random 5x5 bingo cards
 - [ ] Game status changes to "PLAYING" for both players
 
-#### Manual Calling
-- [ ] "Call Next Sighting" button appears for both players
-- [ ] Any player can click the button to call an item
-- [ ] Called item appears in "Sighting Log" for both players
-- [ ] Same item appears in both players' logs (real-time sync)
-- [ ] Called items on cards become clickable (lighter background)
-- [ ] Uncalled items remain disabled (dark background)
+#### Marking Tiles
+- [ ] All tiles are clickable during gameplay
+- [ ] Clicking a tile marks it as "seen" (turns emerald green)
+- [ ] Clicking a seen tile again unmarks it (returns to gray)
+- [ ] Seen items appear in "Sighting Log" for all players
+- [ ] Log shows which player(s) saw each item
+- [ ] Real-time sync - all players see the same sighting log
 
 #### Marking Items
 - [ ] Players can click called items on their own cards
@@ -64,9 +64,9 @@ Since the game uses Cloudflare Workers + Durable Objects, the easiest way to tes
 - [ ] First player to complete a row wins
 - [ ] First player to complete a column wins  
 - [ ] First player to complete a diagonal wins
-- [ ] "SEQUENCE COMPLETE" overlay appears for both players
+- [ ] "GAME OVER" overlay appears for both players
 - [ ] Winner's name is displayed correctly
-- [ ] Either player can click "Reset Simulation" to restart
+- [ ] Either player can click "Restart Game" to restart
 
 #### State Synchronization
 - [ ] All state changes sync in real-time
@@ -224,36 +224,32 @@ Player Join:
 [ ] Status shows "WAITING" for both
 
 Game Start:
-[ ] Player 1 clicks "Initiate Sequence"
+[ ] Player 1 clicks "Start Game"
 [ ] Status changes to "PLAYING" for both
 [ ] Both players receive 5x5 bingo cards
 [ ] Cards are different (random)
-[ ] "Call Next Sighting" button appears for both
-
-Manual Calling:
-[ ] Player 1 clicks "Call Next Sighting"
-[ ] Item appears in Sighting Log for both players
-[ ] Same item text in both logs
-[ ] Player 2 clicks "Call Next Sighting"
-[ ] Second item appears for both players
-[ ] Call 5 more items (total 7 called)
+[ ] Center tile (index 12) is already marked as "free space"
+[ ] All tiles are clickable
 
 Marking Items:
-[ ] Player 1 finds called item on their card
-[ ] Click the item - turns emerald green
-[ ] Player 2 finds different called item
-[ ] Click the item - turns emerald green
-[ ] Try clicking uncalled item - nothing happens (disabled)
+[ ] Player 1 clicks any tile - turns emerald green
+[ ] Item appears in Sighting Log with "Seen by: Player1"
+[ ] Player 2 sees the same item in their log
+[ ] Player 2 clicks a different tile - turns emerald green
+[ ] Item appears in log with "Seen by: Player2"
+[ ] Both players see both items in the log
+[ ] Click a marked tile again - returns to gray (unmarked)
+[ ] Item disappears from sighting log
 [ ] Mark 3-4 more items each
 
 Winning:
 [ ] Continue calling and marking until someone wins
-[ ] "SEQUENCE COMPLETE" overlay appears for both
+[ ] "GAME OVER" overlay appears for both
 [ ] Winner name displayed correctly
 [ ] Verify winning pattern (row/column/diagonal)
 
 Restart:
-[ ] Player 2 clicks "Reset Simulation"
+[ ] Player 2 clicks "Restart Game"
 [ ] Status changes to "PLAYING" for both
 [ ] New cards generated (different from before)
 [ ] Sighting Log clears

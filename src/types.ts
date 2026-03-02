@@ -2,14 +2,14 @@ export type Player = {
   id: string;
   name: string;
   card: string[]; // 25 items
-  marked: boolean[]; // 25 booleans
+  marked: boolean[]; // 25 booleans (for bingo detection)
+  seen: string[]; // List of items this player has marked as seen
   hasBingo: boolean;
 };
 
 export type GameState = {
   status: 'waiting' | 'playing' | 'ended';
   players: Player[];
-  calledItems: string[];
   winner: string | null;
   roomCode: string;
   createdAt: number; // timestamp for 48-hour expiration
@@ -18,8 +18,8 @@ export type GameState = {
 export type ClientMessage =
   | { type: 'JOIN'; name: string; roomCode?: string }
   | { type: 'MARK'; index: number }
+  | { type: 'TOGGLE_SEEN'; item: string }
   | { type: 'START' }
-  | { type: 'CALL_ITEM' }
   | { type: 'REGENERATE_CARD' };
 
 export type ServerMessage =
