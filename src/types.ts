@@ -12,6 +12,7 @@ export type GameState = {
   calledItems: string[];
   winner: string | null;
   roomCode: string;
+  createdAt: number; // timestamp for 48-hour expiration
 };
 
 export type ClientMessage =

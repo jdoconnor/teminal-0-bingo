@@ -5,6 +5,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { GameState, ClientMessage, ServerMessage } from './types';
+import { RoomSelector } from './components/RoomSelector';
 import { Lobby } from './components/Lobby';
 import { BingoCard } from './components/BingoCard';
 import { GameLog } from './components/GameLog';
@@ -18,8 +19,13 @@ export default function App() {
   const ws = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    // Get room code from URL hash (e.g., #ABC123) or use default
-    const urlRoomCode = window.location.hash.slice(1) || 'default';
+    // Get room code from URL hash (e.g., #ABC1)
+    const urlRoomCode = window.location.hash.slice(1);
+    
+    // If no room code, don't connect yet - show room selection UI
+    if (!urlRoomCode || urlRoomCode.length !== 4) {
+      return;
+    }
     
     // Connect to WebSocket
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -39,8 +45,8 @@ export default function App() {
         } else if (message.type === 'WELCOME') {
           setPlayerId(message.playerId);
           setRoomCode(message.roomCode);
-          // Update URL hash with room code for sharing
-          if (message.roomCode && message.roomCode !== 'default') {
+          // Update URL hash with room code for sharing (only if not already set)
+          if (message.roomCode && message.roomCode !== 'default' && !window.location.hash) {
             window.location.hash = message.roomCode;
           }
         } else if (message.type === 'ERROR') {
@@ -102,6 +108,61 @@ export default function App() {
     }
   };
 
+  const handleCreateRoom = () => {
+    // Generate a new 4-character room code
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 4; i++) {
+      code += chars[Math.floor(Math.random() * chars.length)];
+    }
+    // Set the hash and reload to connect
+    window.location.hash = code;
+    window.location.reload();
+  };
+
+  const handleJoinRoom = (code: string) => {
+    // Set the hash and reload to connect
+    window.location.hash = code;
+    window.location.reload();
+  };
+
+  const handleShareRoom = async () => {
+    const shareUrl = window.location.href;
+    
+    // Try to use Web Share API if available
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Terminal 0 Bingo',
+          text: `Join my Terminal 0 Bingo game! Room code: ${roomCode}`,
+          url: shareUrl,
+        });
+      } catch (err) {
+        // User cancelled or share failed, fall back to clipboard
+        if (err instanceof Error && err.name !== 'AbortError') {
+          copyToClipboard(shareUrl);
+        }
+      }
+    } else {
+      // Fallback to clipboard
+      copyToClipboard(shareUrl);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('Link copied to clipboard!');
+    }).catch(() => {
+      alert(`Share this link: ${text}`);
+    });
+  };
+
+  // Show room selector if no valid room code in URL
+  const urlRoomCode = window.location.hash.slice(1);
+  if (!urlRoomCode || urlRoomCode.length !== 4) {
+    return <RoomSelector onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} />;
+  }
+
   if (!gameState || !playerId) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-zinc-900 text-zinc-100">
@@ -117,6 +178,9 @@ export default function App() {
     return <Lobby onJoin={handleJoin} />;
   }
 
+  // Don't show cards until game has started (status is 'playing')
+  const showCards = gameState.status === 'playing' || gameState.status === 'ended';
+
   return (
     <div className="min-h-screen bg-zinc-900 text-zinc-100 font-mono flex flex-col">
       {/* Header */}
@@ -131,10 +195,19 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center space-x-4">
-          {roomCode && roomCode !== 'default' && (
+          {roomCode && (
             <div className="text-right">
               <div className="text-xs text-zinc-500 uppercase tracking-wider">Room Code</div>
-              <div className="font-bold text-emerald-400 font-mono text-lg">{roomCode}</div>
+              <div className="flex items-center space-x-2">
+                <div className="font-bold text-emerald-400 font-mono text-lg">{roomCode}</div>
+                <button
+                  onClick={handleShareRoom}
+                  className="bg-zinc-700 hover:bg-zinc-600 text-zinc-100 px-2 py-1 rounded text-xs uppercase tracking-wide transition-colors"
+                  title="Share room link"
+                >
+                  Share
+                </button>
+              </div>
             </div>
           )}
           <div className="text-right">
@@ -195,13 +268,28 @@ export default function App() {
         {/* Right Panel: Bingo Card */}
         <div className="flex-1 p-2 sm:p-4 md:p-8 flex items-start md:items-center justify-center bg-zinc-900 relative overflow-y-auto">
           <div className="w-full max-w-2xl">
-            <BingoCard
-              card={player.card}
-              marked={player.marked}
-              calledItems={gameState.calledItems}
-              onMark={handleMark}
-              disabled={gameState.status !== 'playing' || player.hasBingo}
-            />
+            {showCards ? (
+              <BingoCard
+                card={player.card}
+                marked={player.marked}
+                calledItems={gameState.calledItems}
+                onMark={handleMark}
+                disabled={gameState.status !== 'playing' || player.hasBingo}
+              />
+            ) : (
+              <div className="text-center space-y-4">
+                <div className="text-2xl font-bold text-emerald-400 animate-pulse">
+                  WAITING FOR GAME TO START
+                </div>
+                <div className="text-zinc-500 text-sm">
+                  {gameState.players.length === 1 ? (
+                    <>Share the room code with other players to begin</>
+                  ) : (
+                    <>Any player can click "Initiate Sequence" to start the game</>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           
           {/* Winner Overlay */}

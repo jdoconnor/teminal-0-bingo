@@ -12,7 +12,7 @@ interface Env {
 const generateRoomCode = (): string => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 4; i++) {
     code += chars[Math.floor(Math.random() * chars.length)];
   }
   return code;
@@ -24,6 +24,7 @@ const createInitialState = (): GameState => ({
   calledItems: [],
   winner: null,
   roomCode: generateRoomCode(),
+  createdAt: Date.now(),
 });
 
 const decoder = new TextDecoder();
@@ -73,9 +74,14 @@ const worker: ExportedHandler<Env> = {
     
     // Handle WebSocket connections on /ws path or with Upgrade header
     if (url.pathname.startsWith('/ws') || upgradeHeader?.toLowerCase() === 'websocket') {
-      // Extract room code from path like /ws/ABC123 or use 'default' room
+      // Extract room code from path like /ws/ABC1
       const pathParts = url.pathname.split('/');
-      const roomCode = pathParts[2] || 'default';
+      const roomCode = pathParts[2];
+      
+      // Require explicit room code - no default room
+      if (!roomCode || roomCode.length !== 4) {
+        return new Response('Invalid room code', { status: 400 });
+      }
       
       const id = env.GAME_ROOM.idFromName(roomCode);
       const stub = env.GAME_ROOM.get(id);
@@ -112,7 +118,17 @@ export class GameRoom extends DurableObject<Env> {
       this.ready = (async () => {
         const stored = await this.ctx.storage.get<GameState>('state');
         if (stored) {
-          this.gameState = stored;
+          // Check if room is older than 48 hours (48 * 60 * 60 * 1000 ms)
+          const fortyEightHours = 48 * 60 * 60 * 1000;
+          const isExpired = Date.now() - stored.createdAt > fortyEightHours;
+          
+          if (isExpired) {
+            // Reset to initial state if expired
+            this.gameState = createInitialState();
+            await this.ctx.storage.put('state', this.gameState);
+          } else {
+            this.gameState = stored;
+          }
         }
       })();
     }
