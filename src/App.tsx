@@ -13,14 +13,18 @@ import { motion, AnimatePresence } from 'motion/react';
 export default function App() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
+  const [roomCode, setRoomCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const ws = useRef<WebSocket | null>(null);
 
   useEffect(() => {
+    // Get room code from URL hash (e.g., #ABC123) or use default
+    const urlRoomCode = window.location.hash.slice(1) || 'default';
+    
     // Connect to WebSocket
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    const socket = new WebSocket(`${protocol}//${host}`);
+    const socket = new WebSocket(`${protocol}//${host}/ws/${urlRoomCode}`);
 
     socket.onopen = () => {
       console.log('Connected to server');
@@ -34,6 +38,11 @@ export default function App() {
           setGameState(message.state);
         } else if (message.type === 'WELCOME') {
           setPlayerId(message.playerId);
+          setRoomCode(message.roomCode);
+          // Update URL hash with room code for sharing
+          if (message.roomCode && message.roomCode !== 'default') {
+            window.location.hash = message.roomCode;
+          }
         } else if (message.type === 'ERROR') {
           setError(message.message);
         }
@@ -62,14 +71,34 @@ export default function App() {
   };
 
   const handleStart = () => {
+    console.log('handleStart called', { 
+      hasWs: !!ws.current, 
+      readyState: ws.current?.readyState,
+      OPEN: WebSocket.OPEN 
+    });
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      console.log('Sending START message');
       ws.current.send(JSON.stringify({ type: 'START' }));
+    } else {
+      console.error('WebSocket not ready', ws.current?.readyState);
     }
   };
 
   const handleMark = (index: number) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type: 'MARK', index }));
+    }
+  };
+
+  const handleCallItem = () => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ type: 'CALL_ITEM' }));
+    }
+  };
+
+  const handleRegenerateCard = () => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ type: 'REGENERATE_CARD' }));
     }
   };
 
@@ -102,6 +131,12 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center space-x-4">
+          {roomCode && roomCode !== 'default' && (
+            <div className="text-right">
+              <div className="text-xs text-zinc-500 uppercase tracking-wider">Room Code</div>
+              <div className="font-bold text-emerald-400 font-mono text-lg">{roomCode}</div>
+            </div>
+          )}
           <div className="text-right">
             <div className="text-xs text-zinc-500 uppercase tracking-wider">Passenger</div>
             <div className="font-bold text-emerald-100">{player.name}</div>
@@ -113,7 +148,7 @@ export default function App() {
       <main className="flex-1 overflow-hidden flex flex-col-reverse md:flex-row">
         {/* Left Panel: Game Log & Info */}
         <div className="w-full md:w-1/3 lg:w-1/4 bg-zinc-800/50 border-t md:border-t-0 md:border-r border-zinc-700 p-2 sm:p-4 flex flex-col space-y-2 sm:space-y-4 overflow-y-auto max-h-[40vh] md:max-h-full">
-          <div className="bg-zinc-900 p-3 sm:p-4 rounded border border-zinc-700">
+          <div className="bg-zinc-900 p-3 sm:p-4 rounded border border-zinc-700 space-y-2">
             <h2 className="text-xs uppercase tracking-widest text-zinc-500 mb-2">Mission Control</h2>
             {gameState.status === 'waiting' || gameState.status === 'ended' ? (
               <button
@@ -123,9 +158,22 @@ export default function App() {
                 {gameState.status === 'ended' ? 'Re-Initialize Sequence' : 'Initiate Sequence'}
               </button>
             ) : (
-              <div className="text-center text-zinc-400 text-sm py-2">
-                Scanning for anomalies...
-              </div>
+              <button
+                onClick={handleCallItem}
+                className="w-full bg-yellow-600 hover:bg-yellow-500 text-zinc-900 font-bold py-2 px-4 rounded transition-colors uppercase tracking-wide text-xs sm:text-sm"
+                data-testid="call-item-button"
+              >
+                Call Next Sighting
+              </button>
+            )}
+            {(gameState.status === 'waiting' || gameState.status === 'playing') && (
+              <button
+                onClick={handleRegenerateCard}
+                className="w-full bg-zinc-700 hover:bg-zinc-600 text-zinc-100 font-bold py-2 px-4 rounded transition-colors uppercase tracking-wide text-xs sm:text-sm border border-zinc-600"
+                title="Get a new random card (loses progress)"
+              >
+                Regenerate My Card
+              </button>
             )}
           </div>
 

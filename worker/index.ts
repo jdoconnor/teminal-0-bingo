@@ -1,0 +1,312 @@
+/// <reference types="@cloudflare/workers-types" />
+
+import {DurableObject} from 'cloudflare:workers';
+import type {ClientMessage, GameState, Player} from '../src/types';
+import {SIGHTINGS} from '../src/types';
+
+interface Env {
+  ASSETS: Fetcher;
+  GAME_ROOM: DurableObjectNamespace;
+}
+
+const generateRoomCode = (): string => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+};
+
+const createInitialState = (): GameState => ({
+  status: 'waiting',
+  players: [],
+  calledItems: [],
+  winner: null,
+  roomCode: generateRoomCode(),
+});
+
+const decoder = new TextDecoder();
+
+const broadcastableState = (state: GameState) => ({
+  type: 'STATE_UPDATE',
+  state,
+});
+
+const errorMessage = (message: string) => ({
+  type: 'ERROR',
+  message,
+});
+
+const generateCard = (): string[] => {
+  const shuffled = [...SIGHTINGS].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, 25);
+};
+
+const checkBingo = (marked: boolean[]): boolean => {
+  for (let row = 0; row < 5; row++) {
+    if (marked.slice(row * 5, (row + 1) * 5).every(Boolean)) {
+      return true;
+    }
+  }
+
+  for (let col = 0; col < 5; col++) {
+    if ([0, 1, 2, 3, 4].map(idx => marked[col + idx * 5]).every(Boolean)) {
+      return true;
+    }
+  }
+
+  if ([0, 6, 12, 18, 24].map(idx => marked[idx]).every(Boolean)) {
+    return true;
+  }
+  if ([4, 8, 12, 16, 20].map(idx => marked[idx]).every(Boolean)) {
+    return true;
+  }
+
+  return false;
+};
+
+const worker: ExportedHandler<Env> = {
+  async fetch(request, env): Promise<Response> {
+    const url = new URL(request.url);
+    const upgradeHeader = request.headers.get('Upgrade');
+    
+    // Handle WebSocket connections on /ws path or with Upgrade header
+    if (url.pathname.startsWith('/ws') || upgradeHeader?.toLowerCase() === 'websocket') {
+      // Extract room code from path like /ws/ABC123 or use 'default' room
+      const pathParts = url.pathname.split('/');
+      const roomCode = pathParts[2] || 'default';
+      
+      const id = env.GAME_ROOM.idFromName(roomCode);
+      const stub = env.GAME_ROOM.get(id);
+      return stub.fetch(request);
+    }
+
+    // Serve static assets if ASSETS binding is available
+    if (env.ASSETS) {
+      return env.ASSETS.fetch(request);
+    }
+
+    // Fallback for missing ASSETS binding
+    return new Response('Not found', { status: 404 });
+  },
+};
+
+export default worker;
+
+type ConnectionMeta = {
+  playerId: string;
+};
+
+export class GameRoom extends DurableObject<Env> {
+  private connections = new Map<WebSocket, ConnectionMeta>();
+  private gameState: GameState = createInitialState();
+  private ready: Promise<void> | null = null;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+  }
+
+  private ensureReady() {
+    if (!this.ready) {
+      this.ready = (async () => {
+        const stored = await this.ctx.storage.get<GameState>('state');
+        if (stored) {
+          this.gameState = stored;
+        }
+      })();
+    }
+    return this.ready;
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    await this.ensureReady();
+
+    if (request.headers.get('Upgrade') !== 'websocket') {
+      return new Response('Expected WebSocket', {status: 426});
+    }
+
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair);
+    const playerId = crypto.randomUUID();
+
+    this.ctx.acceptWebSocket(server);
+    this.connections.set(server, {playerId});
+
+    server.send(JSON.stringify({type: 'WELCOME', playerId, roomCode: this.gameState.roomCode}));
+    server.send(JSON.stringify(broadcastableState(this.gameState)));
+
+    return new Response(null, {status: 101, webSocket: client});
+  }
+
+  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
+    await this.ensureReady();
+
+    const connection = this.connections.get(ws);
+    if (!connection) return;
+
+    const raw = typeof message === 'string' ? message : decoder.decode(message);
+
+    try {
+      const data = JSON.parse(raw) as ClientMessage;
+      if (data.type === 'JOIN') {
+        await this.handleJoin(connection.playerId, data.name);
+      } else if (data.type === 'START') {
+        await this.handleStart();
+      } else if (data.type === 'MARK') {
+        await this.handleMark(connection.playerId, data.index);
+      } else if (data.type === 'CALL_ITEM') {
+        await this.handleCallItem();
+      } else if (data.type === 'REGENERATE_CARD') {
+        await this.handleRegenerateCard(connection.playerId);
+      }
+    } catch (error) {
+      ws.send(JSON.stringify(errorMessage('Invalid payload')));
+    }
+  }
+
+  async webSocketClose(ws: WebSocket) {
+    await this.ensureReady();
+
+    const connection = this.connections.get(ws);
+    this.connections.delete(ws);
+
+    if (!connection) return;
+
+    const beforeLength = this.gameState.players.length;
+    this.gameState.players = this.gameState.players.filter(p => p.id !== connection.playerId);
+
+    if (beforeLength !== this.gameState.players.length) {
+      if (this.gameState.players.length === 0) {
+        this.gameState = createInitialState();
+        await this.persistState();
+      } else {
+        await this.persistAndBroadcast();
+      }
+    }
+  }
+
+
+  private async handleJoin(playerId: string, rawName: string) {
+    const safeName = (rawName?.trim() || 'Anonymous').slice(0, 12) || 'Anonymous';
+    let player = this.gameState.players.find(p => p.id === playerId);
+
+    if (!player) {
+      player = {
+        id: playerId,
+        name: safeName,
+        card: generateCard(),
+        marked: new Array(25).fill(false),
+        hasBingo: false,
+      } satisfies Player;
+      this.gameState.players.push(player);
+    } else {
+      player.name = safeName;
+    }
+
+    await this.persistAndBroadcast();
+  }
+
+  private async handleStart() {
+    if (this.gameState.status !== 'waiting' && this.gameState.status !== 'ended') {
+      return;
+    }
+
+    this.gameState.status = 'playing';
+    this.gameState.calledItems = [];
+    this.gameState.winner = null;
+
+    this.gameState.players = this.gameState.players.map(player => ({
+      ...player,
+      card: generateCard(),
+      marked: new Array(25).fill(false),
+      hasBingo: false,
+    }));
+
+    await this.persistAndBroadcast();
+  }
+
+  private async handleMark(playerId: string, index: number) {
+    if (this.gameState.status !== 'playing') {
+      return;
+    }
+
+    if (index < 0 || index >= 25) {
+      return;
+    }
+
+    const player = this.gameState.players.find(p => p.id === playerId);
+    if (!player) return;
+
+    const item = player.card[index];
+    if (!this.gameState.calledItems.includes(item)) {
+      return;
+    }
+
+    player.marked[index] = true;
+
+    if (checkBingo(player.marked)) {
+      player.hasBingo = true;
+      this.gameState.winner = player.name;
+      this.gameState.status = 'ended';
+    }
+
+    await this.persistAndBroadcast();
+  }
+
+  private async handleCallItem() {
+    if (this.gameState.status !== 'playing') return;
+
+    const availableItems = SIGHTINGS.filter(item => !this.gameState.calledItems.includes(item));
+
+    if (availableItems.length === 0) {
+      this.gameState.status = 'ended';
+      await this.persistAndBroadcast();
+      return;
+    }
+
+    const nextItem = availableItems[Math.floor(Math.random() * availableItems.length)];
+    this.gameState.calledItems.push(nextItem);
+
+    await this.persistAndBroadcast();
+  }
+
+  private async handleRegenerateCard(playerId: string) {
+    const player = this.gameState.players.find(p => p.id === playerId);
+    if (!player) return;
+
+    // Only allow regeneration during waiting or playing status
+    if (this.gameState.status !== 'waiting' && this.gameState.status !== 'playing') {
+      return;
+    }
+
+    // Generate new card and reset marked items
+    player.card = generateCard();
+    player.marked = new Array(25).fill(false);
+    player.hasBingo = false;
+
+    await this.persistAndBroadcast();
+  }
+
+  private async persistState() {
+    await this.ctx.storage.put('state', this.gameState);
+  }
+
+  private async persistAndBroadcast() {
+    await this.persistState();
+    this.broadcastState();
+  }
+
+  private broadcastState() {
+    if (this.connections.size === 0) return;
+
+    const payload = JSON.stringify(broadcastableState(this.gameState));
+    for (const ws of this.connections.keys()) {
+      try {
+        ws.send(payload);
+      } catch (error) {
+        console.error('Failed to broadcast state', error);
+      }
+    }
+  }
+}
