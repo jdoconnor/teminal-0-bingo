@@ -178,7 +178,7 @@ export class GameRoom extends DurableObject<Env> {
     try {
       const data = JSON.parse(raw) as ClientMessage;
       if (data.type === 'JOIN') {
-        await this.handleJoin(connection.playerId, data.name);
+        await this.handleJoin(connection.playerId, data.name, data.savedPlayerId);
       } else if (data.type === 'START') {
         await this.handleStart();
       } else if (data.type === 'MARK') {
@@ -201,6 +201,12 @@ export class GameRoom extends DurableObject<Env> {
 
     if (!connection) return;
 
+    // During an active game keep the player in state so they can reconnect
+    // and resume without losing their card or progress.
+    if (this.gameState.status === 'playing' || this.gameState.status === 'ended') {
+      return;
+    }
+
     const beforeLength = this.gameState.players.length;
     this.gameState.players = this.gameState.players.filter(p => p.id !== connection.playerId);
 
@@ -215,8 +221,30 @@ export class GameRoom extends DurableObject<Env> {
   }
 
 
-  private async handleJoin(playerId: string, rawName: string) {
+  private async handleJoin(playerId: string, rawName: string, savedPlayerId?: string) {
     const safeName = (rawName?.trim() || 'Anonymous').slice(0, 12) || 'Anonymous';
+
+    // During an active game, try to reconnect to the player's previous session
+    // using the savedPlayerId stored in the client's localStorage.
+    if (savedPlayerId && (this.gameState.status === 'playing' || this.gameState.status === 'ended')) {
+      const existingPlayer = this.gameState.players.find(p => p.id === savedPlayerId);
+      if (existingPlayer) {
+        // Remap this new connection to the existing player ID so the client
+        // continues to interact with their original card and progress.
+        for (const [ws, meta] of this.connections.entries()) {
+          if (meta.playerId === playerId) {
+            this.connections.set(ws, {playerId: savedPlayerId});
+            // Tell the client to use the restored player ID.
+            ws.send(JSON.stringify({type: 'WELCOME', playerId: savedPlayerId, roomCode: this.gameState.roomCode}));
+            break;
+          }
+        }
+        existingPlayer.name = safeName;
+        await this.persistAndBroadcast();
+        return;
+      }
+    }
+
     let player = this.gameState.players.find(p => p.id === playerId);
 
     if (!player) {

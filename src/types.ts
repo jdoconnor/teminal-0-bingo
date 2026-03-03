@@ -16,7 +16,7 @@ export type GameState = {
 };
 
 export type ClientMessage =
-  | { type: 'JOIN'; name: string; roomCode?: string }
+  | { type: 'JOIN'; name: string; roomCode?: string; savedPlayerId?: string }
   | { type: 'MARK'; index: number }
   | { type: 'TOGGLE_SEEN'; item: string }
   | { type: 'START' }
