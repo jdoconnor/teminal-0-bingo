@@ -10,6 +10,7 @@ import { Lobby } from './components/Lobby';
 import { BingoCard } from './components/BingoCard';
 import { GameLog } from './components/GameLog';
 import { ConfirmModal } from './components/ConfirmModal';
+import { ToastContainer, useToast } from './components/Toast';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showNewCardModal, setShowNewCardModal] = useState(false);
+  const { toasts, addToast, dismissToast } = useToast();
   const ws = useRef<WebSocket | null>(null);
   const hasAutoJoined = useRef(false);
   const reconnectAttempts = useRef(0);
@@ -94,9 +96,11 @@ export default function App() {
             localStorage.setItem(`terminal0_player_id_${urlRoomCode}`, message.playerId);
           } else if (message.type === 'ERROR') {
             setError(message.message);
+            addToast(`Server error: ${message.message}`, 'error');
           }
         } catch (e) {
           console.error('Failed to parse message', e);
+          addToast(`Failed to parse server message: ${e}`, 'error');
         }
       };
 
@@ -109,6 +113,7 @@ export default function App() {
         reconnectAttempts.current += 1;
 
         setError(`Connection lost. Reconnecting in ${Math.round(delay / 1000)}s…`);
+        addToast(`Connection lost. Reconnecting in ${Math.round(delay / 1000)}s…`, 'warn');
 
         // Allow auto-join to fire again on the next connection so the player
         // seamlessly re-enters the game.
@@ -155,19 +160,25 @@ export default function App() {
       console.log('Sending START message');
       ws.current.send(JSON.stringify({ type: 'START' }));
     } else {
-      console.error('WebSocket not ready', ws.current?.readyState);
+      const state = ws.current?.readyState ?? 'no socket';
+      console.error('WebSocket not ready', state);
+      addToast(`Start not sent — WS state: ${state}`, 'error');
     }
   };
 
   const handleMark = (index: number) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type: 'MARK', index }));
+    } else {
+      addToast(`Mark not sent — WS state: ${ws.current?.readyState ?? 'no socket'}`, 'error');
     }
   };
 
   const handleToggleSeen = (item: string) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type: 'TOGGLE_SEEN', item }));
+    } else {
+      addToast(`Tap not registered — WS state: ${ws.current?.readyState ?? 'no socket'}`, 'error');
     }
   };
 
@@ -404,6 +415,8 @@ export default function App() {
       <footer className="bg-white/90 backdrop-blur-sm p-3 text-center text-xs text-gray-500">
         Terminal 0 Bingo · Made with 💜
       </footer>
+
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
