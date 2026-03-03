@@ -23,18 +23,19 @@ export function RoomSelector({ onCreateRoom, onJoinRoom }: RoomSelectorProps) {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="min-h-screen bg-zinc-900 text-zinc-100 font-mono flex items-center justify-center p-4"
+        className="min-h-screen bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 flex items-center justify-center p-4"
       >
-        <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-8 max-w-md w-full shadow-2xl">
-          <h1 className="text-2xl font-bold text-emerald-400 mb-2 tracking-tighter">TERMINAL 0</h1>
-          <p className="text-zinc-400 text-sm mb-6">ESOTERIC SIGHTINGS BINGO</p>
-          
-          <h2 className="text-lg font-bold text-zinc-100 mb-4">JOIN EXISTING GAME</h2>
+        <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-8 max-w-md w-full shadow-2xl">
+          <div className="text-center mb-6">
+            <div className="text-5xl mb-3">🎮</div>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-1">Terminal 0 Bingo</h1>
+            <p className="text-gray-600 text-sm">Join a game</p>
+          </div>
           
           <form onSubmit={handleJoinSubmit} className="space-y-4">
             <div>
-              <label htmlFor="room-code" className="block text-xs uppercase tracking-wider text-zinc-500 mb-2">
-                Enter 4-Character Room Code
+              <label htmlFor="room-code" className="block text-sm font-semibold text-gray-700 mb-2">
+                Room Code
               </label>
               <input
                 id="room-code"
@@ -43,7 +44,7 @@ export function RoomSelector({ onCreateRoom, onJoinRoom }: RoomSelectorProps) {
                 onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                 maxLength={4}
                 placeholder="ABC1"
-                className="w-full bg-zinc-900 border border-zinc-700 rounded px-4 py-3 text-emerald-400 font-mono text-2xl tracking-widest text-center uppercase focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                className="w-full bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl px-4 py-4 text-purple-600 font-bold text-3xl tracking-widest text-center uppercase focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-200"
                 autoFocus
               />
             </div>
@@ -51,22 +52,22 @@ export function RoomSelector({ onCreateRoom, onJoinRoom }: RoomSelectorProps) {
             <button
               type="submit"
               disabled={joinCode.length !== 4}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-zinc-900 font-bold py-3 px-4 rounded transition-colors uppercase tracking-wide"
+              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-300 disabled:to-gray-400 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-lg hover:shadow-xl"
             >
-              Join Game
+              Join Game 🚀
             </button>
             
             <button
               type="button"
               onClick={() => setMode('select')}
-              className="w-full bg-zinc-700 hover:bg-zinc-600 text-zinc-100 font-bold py-2 px-4 rounded transition-colors uppercase tracking-wide text-sm"
+              className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-xl transition-colors"
             >
-              Back
+              ← Back
             </button>
           </form>
           
-          <p className="text-xs text-zinc-500 mt-6 text-center">
-            WARNING: REALITY MAY BE UNSTABLE
+          <p className="text-xs text-gray-500 mt-6 text-center">
+            ✨ Enter the 4-character code shared by your friend
           </p>
         </div>
       </motion.div>
@@ -77,32 +78,33 @@ export function RoomSelector({ onCreateRoom, onJoinRoom }: RoomSelectorProps) {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="min-h-screen bg-zinc-900 text-zinc-100 font-mono flex items-center justify-center p-4"
+      className="min-h-screen bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 flex items-center justify-center p-4"
     >
-      <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-8 max-w-md w-full shadow-2xl">
-        <h1 className="text-2xl font-bold text-emerald-400 mb-2 tracking-tighter">TERMINAL 0</h1>
-        <p className="text-zinc-400 text-sm mb-6">ESOTERIC SIGHTINGS BINGO</p>
-        
-        <h2 className="text-lg font-bold text-zinc-100 mb-4">SELECT MODE</h2>
+      <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-8 max-w-md w-full shadow-2xl">
+        <div className="text-center mb-8">
+          <div className="text-6xl mb-4">🎮</div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">Terminal 0 Bingo</h1>
+          <p className="text-gray-600">Spot weird things at the airport!</p>
+        </div>
         
         <div className="space-y-3">
           <button
             onClick={onCreateRoom}
-            className="w-full bg-emerald-600 hover:bg-emerald-500 text-zinc-900 font-bold py-4 px-4 rounded transition-colors uppercase tracking-wide"
+            className="w-full bg-gradient-to-r from-green-400 to-emerald-500 hover:from-green-500 hover:to-emerald-600 text-white font-bold py-5 px-4 rounded-xl transition-all shadow-lg hover:shadow-xl text-lg"
           >
-            Create New Game
+            🎯 Create New Game
           </button>
           
           <button
             onClick={() => setMode('join')}
-            className="w-full bg-yellow-600 hover:bg-yellow-500 text-zinc-900 font-bold py-4 px-4 rounded transition-colors uppercase tracking-wide"
+            className="w-full bg-gradient-to-r from-blue-400 to-purple-500 hover:from-blue-500 hover:to-purple-600 text-white font-bold py-5 px-4 rounded-xl transition-all shadow-lg hover:shadow-xl text-lg"
           >
-            Join Existing Game
+            🚪 Join Game
           </button>
         </div>
         
-        <p className="text-xs text-zinc-500 mt-6 text-center">
-          WARNING: REALITY MAY BE UNSTABLE
+        <p className="text-xs text-gray-500 mt-8 text-center">
+          ✨ A fun multiplayer bingo game for airports
         </p>
       </div>
     </motion.div>

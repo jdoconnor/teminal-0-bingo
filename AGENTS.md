@@ -73,11 +73,11 @@ Client sends MARK → Server validates and checks for bingo
 - When last player disconnects, state resets to initial
 
 #### 3. **Shared Types (`src/types.ts`)**
-- `GameState`: status, players array, calledItems, winner
-- `Player`: id, name, card (25 items), marked (25 booleans), hasBingo
-- `ClientMessage`: JOIN, MARK, START, CALL_ITEM
-- `ServerMessage`: STATE_UPDATE, ERROR, WELCOME
-- `SIGHTINGS`: Array of 50 esoteric airport observations
+- `GameState`: `status`, `players`, `winner`, `roomCode`, `createdAt`
+- `Player`: `id`, `name`, `card` (25 strings), `marked` (25 booleans), `seen` items, `hasBingo`
+- `ClientMessage`: `JOIN`, `MARK`, `TOGGLE_SEEN`, `START`, `REGENERATE_CARD`
+- `ServerMessage`: `STATE_UPDATE`, `ERROR`, `WELCOME` (includes `playerId` + `roomCode`)
+- `Sightings`: categorized arrays (`LOOKS`, `BEHAVIOR`, `SMELL`, `OBJECT`) combined via `ALL_SIGHTINGS`
 
 ---
 
@@ -132,7 +132,8 @@ Client sends MARK → Server validates and checks for bingo
 5. Any player calls items manually → both see same called items in real-time
 6. Players mark their own cards independently
 7. First to complete a pattern wins → both see winner announcement
-8. Either player can restart → both get new cards
+8. Either player can regenerate thier own card. it does not affect other players' cards
+9. Either player can restart → both get new cards
 
 ### State Synchronization
 - Single source of truth: GameRoom Durable Object

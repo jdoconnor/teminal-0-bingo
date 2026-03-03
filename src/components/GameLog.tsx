@@ -33,23 +33,23 @@ export function GameLog({ players }: GameLogProps) {
   }, [allSeenItems]);
 
   return (
-    <div className="bg-zinc-900 p-3 sm:p-4 rounded border border-zinc-700 flex-1 min-h-[150px] max-h-[300px] overflow-y-auto">
-      <h3 className="text-xs uppercase tracking-widest text-zinc-500 mb-2">Sighting Log</h3>
+    <div className="bg-gradient-to-br from-pink-50 to-purple-50 p-3 sm:p-4 rounded-2xl shadow-md flex-1 min-h-[150px] max-h-[300px] overflow-y-auto">
+      <h3 className="text-sm font-bold text-pink-700 mb-2">👀 Sightings</h3>
       {allSeenItems.length === 0 ? (
-        <p className="text-zinc-600 text-xs italic">Waiting for sightings...</p>
+        <p className="text-gray-500 text-xs italic">No sightings yet...</p>
       ) : (
-        <div ref={scrollRef} className="space-y-1">
+        <div ref={scrollRef} className="space-y-2">
           <AnimatePresence>
             {allSeenItems.map(({ item, players: seenByPlayers }, index) => (
               <motion.div
                 key={`${item}-${index}`}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="text-xs bg-zinc-800 p-2 rounded border border-zinc-700"
+                className="text-xs bg-white p-2.5 rounded-xl shadow-sm border border-purple-100"
               >
-                <div className="text-zinc-300">{item}</div>
-                <div className="text-emerald-400 text-[10px] mt-1">
-                  Seen by: {seenByPlayers.join(', ')}
+                <div className="text-gray-700 font-medium">{item}</div>
+                <div className="text-purple-600 text-[10px] mt-1 font-semibold">
+                  Spotted by: {seenByPlayers.join(', ')}
                 </div>
               </motion.div>
             ))}

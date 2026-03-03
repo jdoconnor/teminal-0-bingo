@@ -2,7 +2,7 @@
 
 import {DurableObject} from 'cloudflare:workers';
 import type {ClientMessage, GameState, Player} from '../src/types';
-import {SIGHTINGS} from '../src/types';
+import {LOOKS_SIGHTINGS, BEHAVIOR_SIGHTINGS, SMELL_SIGHTINGS, OBJECT_SIGHTINGS} from '../src/types';
 
 interface Env {
   ASSETS: Fetcher;
@@ -39,8 +39,21 @@ const errorMessage = (message: string) => ({
 });
 
 const generateCard = (): string[] => {
-  const shuffled = [...SIGHTINGS].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, 25);
+  // Balanced distribution: 6 looks, 6 behaviors, 6 smells, 7 objects = 25 total
+  const pickRandom = (arr: string[], count: number): string[] => {
+    const shuffled = [...arr].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, count);
+  };
+  
+  const card = [
+    ...pickRandom(LOOKS_SIGHTINGS, 6),
+    ...pickRandom(BEHAVIOR_SIGHTINGS, 6),
+    ...pickRandom(SMELL_SIGHTINGS, 6),
+    ...pickRandom(OBJECT_SIGHTINGS, 7),
+  ];
+  
+  // Shuffle the combined card so categories aren't grouped
+  return card.sort(() => Math.random() - 0.5);
 };
 
 const checkBingo = (marked: boolean[]): boolean => {

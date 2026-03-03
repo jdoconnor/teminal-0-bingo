@@ -15,23 +15,26 @@ export function Lobby({ onJoin }: LobbyProps) {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-900 text-zinc-100 font-mono p-4">
-      <div className="max-w-md w-full bg-zinc-800 border border-zinc-700 p-8 rounded-lg shadow-2xl">
-        <h1 className="text-3xl font-bold mb-2 text-center text-emerald-400 tracking-tighter">TERMINAL 0</h1>
-        <p className="text-zinc-400 text-center mb-8 text-sm uppercase tracking-widest">Esoteric Sightings Bingo</p>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 p-4">
+      <div className="max-w-md w-full bg-white/95 backdrop-blur-sm p-8 rounded-3xl shadow-2xl">
+        <div className="text-center mb-6">
+          <div className="text-5xl mb-3">🎮</div>
+          <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">Terminal 0 Bingo</h1>
+          <p className="text-gray-600 text-sm">Spot the weird things!</p>
+        </div>
         
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label htmlFor="name" className="block text-xs uppercase tracking-wider text-zinc-500 mb-2">
-              Passenger Identity
+            <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2">
+              Your Name
             </label>
             <input
               type="text"
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-700 text-zinc-100 px-4 py-3 rounded focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
-              placeholder="ENTER NAME..."
+              className="w-full bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 text-gray-800 px-4 py-3 rounded-xl focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-200 transition-all font-medium"
+              placeholder="Enter your name"
               autoFocus
               maxLength={12}
             />
@@ -40,14 +43,14 @@ export function Lobby({ onJoin }: LobbyProps) {
           <button
             type="submit"
             disabled={!name.trim()}
-            className="w-full bg-emerald-600 hover:bg-emerald-500 text-zinc-900 font-bold py-3 px-4 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide"
+            className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Enter Terminal
+            Join Game 🚀
           </button>
         </form>
         
-        <div className="mt-8 text-center text-xs text-zinc-600">
-          <p>WARNING: REALITY MAY BE UNSTABLE</p>
+        <div className="mt-6 text-center text-xs text-gray-500">
+          <p>✨ Get ready for some weird sightings!</p>
         </div>
       </div>
     </div>
