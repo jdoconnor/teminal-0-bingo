@@ -110,13 +110,13 @@ test.describe('Two Player Bingo Game', () => {
     await player1.waitForTimeout(500);
     
     // Verify the newly clicked item appears in the log
-    const newLogItem = player1.locator('.bg-zinc-800.p-2').filter({ hasText: tileText || '' });
+    const newLogItem = player1.locator('div.text-xs.bg-white').filter({ hasText: tileText || '' });
     await expect(newLogItem).toBeVisible();
-    await expect(newLogItem.locator('.text-emerald-400')).toContainText('Seen by: Alice');
+    await expect(newLogItem.locator('.text-purple-600')).toContainText('Spotted by: Alice');
     
     // Player 2 should also see the same items
     await player2.waitForTimeout(500);
-    const player2LogItem = player2.locator('.bg-zinc-800.p-2').filter({ hasText: tileText || '' });
+    const player2LogItem = player2.locator('div.text-xs.bg-white').filter({ hasText: tileText || '' });
     await expect(player2LogItem).toBeVisible();
   });
 
@@ -140,15 +140,19 @@ test.describe('Two Player Bingo Game', () => {
     
     await player1.click('button:has-text("Start Game")');
     
-    // With new toggle mechanics, just click any tile to mark it as seen
-    await player1.waitForTimeout(1000); // Wait for game to be ready
-    
-    // Click the first tile to mark it as seen
+    // With new toggle mechanics, all tiles are clickable
+    // Click a tile to mark it as seen
     const firstTile = player1.locator('.grid button').first();
     await firstTile.click();
     
-    // Verify the tile is marked (has emerald background)
-    await expect(firstTile).toHaveClass(/bg-emerald-600/);
+    // Verify it's now marked (pink gradient background)
+    await expect(firstTile).toHaveClass(/from-pink-400/);
+
+    // Click again to unmark it
+    await firstTile.click();
+
+    // Verify it's unmarked (blue gradient background)
+    await expect(firstTile).toHaveClass(/from-blue-100/);
   });
 
   test('can toggle items as seen/unseen', async () => {
@@ -176,14 +180,14 @@ test.describe('Two Player Bingo Game', () => {
     const firstTile = player1.locator('.grid button').first();
     await firstTile.click();
     
-    // Verify it's now marked (emerald background)
-    await expect(firstTile).toHaveClass(/bg-emerald-600/);
-    
+    // Verify it's now marked (pink gradient background)
+    await expect(firstTile).toHaveClass(/from-pink-400/);
+
     // Click again to unmark it
     await firstTile.click();
-    
-    // Verify it's unmarked (gray background)
-    await expect(firstTile).toHaveClass(/bg-zinc-700/);
+
+    // Verify it's unmarked (blue gradient background)
+    await expect(firstTile).toHaveClass(/from-blue-100/);
   });
 
   test('winner announcement appears for both players', async () => {
@@ -308,9 +312,9 @@ test.describe('Two Player Bingo Game', () => {
     await player2.click('button:has-text("Join Game")');
     await player2.waitForSelector('text=Bob');
     
-    // Verify both see WAITING status (use specific selector to avoid strict mode violation)
-    await expect(player1.locator('.text-yellow-500:has-text("WAITING")')).toBeVisible();
-    await expect(player2.locator('.text-yellow-500:has-text("WAITING")')).toBeVisible();
+    // Verify both see waiting status with new styling
+    await expect(player1.locator('.text-pink-700:has-text("⏳ Waiting")')).toBeVisible();
+    await expect(player2.locator('.text-pink-700:has-text("⏳ Waiting")')).toBeVisible();
     
     // Player 1 starts
     await player1.click('button:has-text("Start Game")');
@@ -322,15 +326,15 @@ test.describe('Two Player Bingo Game', () => {
     // Player 2 marks a tile as seen
     await player2.waitForTimeout(1000);
     const player2Tile = player2.locator('.grid button').first();
+    const tileText = await player2Tile.textContent();
     await player2Tile.click();
     
     // Both should see the item in the sighting log
-    await player1.waitForSelector('.bg-zinc-800.p-2', { timeout: 5000 });
-    await player2.waitForSelector('.bg-zinc-800.p-2', { timeout: 5000 });
+    const logSelector = 'div.text-xs.bg-white';
+    await player1.waitForSelector(logSelector, { timeout: 5000 });
+    await player2.waitForSelector(logSelector, { timeout: 5000 });
     
-    const count1 = await player1.locator('.bg-zinc-800.p-2').count();
-    const count2 = await player2.locator('.bg-zinc-800.p-2').count();
-    
-    expect(count1).toBe(count2);
+    await expect(player1.locator(logSelector).filter({ hasText: tileText || '' })).toBeVisible();
+    await expect(player2.locator(logSelector).filter({ hasText: tileText || '' })).toBeVisible();
   });
 });
