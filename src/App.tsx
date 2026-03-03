@@ -20,78 +20,128 @@ export default function App() {
   const [showNewCardModal, setShowNewCardModal] = useState(false);
   const ws = useRef<WebSocket | null>(null);
   const hasAutoJoined = useRef(false);
+  const reconnectAttempts = useRef(0);
+  const reconnectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     // Get room code from URL hash (e.g., #ABC1)
     const urlRoomCode = window.location.hash.slice(1);
-    
+
     // If no room code, don't connect yet - show room selection UI
     if (!urlRoomCode || urlRoomCode.length !== 4) {
       return;
     }
-    
+
     // Set room code from URL immediately - this is the source of truth
     setRoomCode(urlRoomCode);
-    
-    // Connect to WebSocket
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    const socket = new WebSocket(`${protocol}//${host}/ws/${urlRoomCode}`);
 
-    socket.onopen = () => {
-      console.log('Connected to server');
-      setError(null);
-    };
+    const connect = () => {
+      if (!isMounted.current) return;
 
-    socket.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data) as ServerMessage;
-        if (message.type === 'STATE_UPDATE') {
-          setGameState(message.state);
-        } else if (message.type === 'WELCOME') {
-          setPlayerId(message.playerId);
-          // Room code already set from URL - don't override it
-          
-          // Auto-join with saved name if available and not already joined
-          if (!hasAutoJoined.current) {
-            const savedName = localStorage.getItem(`terminal0_player_name_${urlRoomCode}`);
-            if (savedName) {
-              hasAutoJoined.current = true;
-              setTimeout(() => {
-                if (socket.readyState === WebSocket.OPEN) {
-                  socket.send(JSON.stringify({ type: 'JOIN', name: savedName }));
-                }
-              }, 100);
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      const socket = new WebSocket(`${protocol}//${host}/ws/${urlRoomCode}`);
+      ws.current = socket;
+
+      socket.onopen = () => {
+        if (!isMounted.current) return;
+        console.log('Connected to server');
+        reconnectAttempts.current = 0;
+        setError(null);
+      };
+
+      socket.onmessage = (event) => {
+        if (!isMounted.current) return;
+        try {
+          const message = JSON.parse(event.data) as ServerMessage;
+          if (message.type === 'STATE_UPDATE') {
+            setGameState(message.state);
+          } else if (message.type === 'WELCOME') {
+            setPlayerId(message.playerId);
+            // Room code already set from URL - don't override it
+
+            // Auto-join with saved name if available and not already joined this session
+            if (!hasAutoJoined.current) {
+              const savedName = localStorage.getItem(`terminal0_player_name_${urlRoomCode}`);
+              if (savedName) {
+                hasAutoJoined.current = true;
+                // Include the previously-stored player ID so the server can
+                // restore our card rather than generating a brand-new one.
+                const savedPlayerId = localStorage.getItem(`terminal0_player_id_${urlRoomCode}`);
+                setTimeout(() => {
+                  if (socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({
+                      type: 'JOIN',
+                      name: savedName,
+                      ...(savedPlayerId ? { savedPlayerId } : {}),
+                    }));
+                  }
+                }, 100);
+              }
             }
+
+            // Persist the authoritative player ID returned by the server.
+            // On a reconnect the server may reply with our OLD id (after session
+            // restore), so we always overwrite with whatever the server says.
+            localStorage.setItem(`terminal0_player_id_${urlRoomCode}`, message.playerId);
+          } else if (message.type === 'ERROR') {
+            setError(message.message);
           }
-        } else if (message.type === 'ERROR') {
-          setError(message.message);
+        } catch (e) {
+          console.error('Failed to parse message', e);
         }
-      } catch (e) {
-        console.error('Failed to parse message', e);
-      }
+      };
+
+      socket.onclose = () => {
+        if (!isMounted.current) return;
+        console.log('Disconnected from server');
+
+        // Exponential backoff: 1s, 2s, 4s, 8s, cap at 16s
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 16000);
+        reconnectAttempts.current += 1;
+
+        setError(`Connection lost. Reconnecting in ${Math.round(delay / 1000)}s…`);
+
+        // Allow auto-join to fire again on the next connection so the player
+        // seamlessly re-enters the game.
+        hasAutoJoined.current = false;
+
+        reconnectTimeout.current = setTimeout(() => {
+          if (isMounted.current) {
+            connect();
+          }
+        }, delay);
+      };
     };
 
-    socket.onclose = () => {
-      console.log('Disconnected from server');
-      setError('Connection lost. Reconnecting...');
-      // Simple reconnect logic could go here, but for now just show error
-    };
-
-    ws.current = socket;
+    connect();
 
     return () => {
-      socket.close();
+      isMounted.current = false;
+      if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
+      ws.current?.close();
     };
   }, []);
 
   const handleJoin = (name: string) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify({ type: 'JOIN', name }));
-      // Save name to localStorage for this room
+      // Save name (and current playerId if we have one) so we can restore
+      // the session on reconnect / page refresh.
       if (roomCode) {
         localStorage.setItem(`terminal0_player_name_${roomCode}`, name);
+        if (playerId) {
+          localStorage.setItem(`terminal0_player_id_${roomCode}`, playerId);
+        }
       }
+      ws.current.send(JSON.stringify({ type: 'JOIN', name }));
     }
   };
 
