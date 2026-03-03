@@ -18,9 +18,12 @@ export function Lobby({ onJoin }: LobbyProps) {
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 p-4">
       <div className="max-w-md w-full bg-white/95 backdrop-blur-sm p-8 rounded-3xl shadow-2xl">
         <div className="text-center mb-6">
-          <div className="text-5xl mb-3">🎮</div>
+          <div className="text-5xl mb-3">👁️</div>
           <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">Terminal 0 Bingo</h1>
-          <p className="text-gray-600 text-sm">Spot the weird things!</p>
+          <p className="text-gray-600 text-sm leading-relaxed">
+            Terminal 0 overflowed into your terminal.<br />
+            <span className="font-semibold text-purple-600">Spot the escapees.</span>
+          </p>
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-5">

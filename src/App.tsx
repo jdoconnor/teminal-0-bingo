@@ -9,6 +9,7 @@ import { RoomSelector } from './components/RoomSelector';
 import { Lobby } from './components/Lobby';
 import { BingoCard } from './components/BingoCard';
 import { GameLog } from './components/GameLog';
+import { ConfirmModal } from './components/ConfirmModal';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
@@ -16,7 +17,9 @@ export default function App() {
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showNewCardModal, setShowNewCardModal] = useState(false);
   const ws = useRef<WebSocket | null>(null);
+  const hasAutoJoined = useRef(false);
 
   useEffect(() => {
     // Get room code from URL hash (e.g., #ABC1)
@@ -48,6 +51,19 @@ export default function App() {
         } else if (message.type === 'WELCOME') {
           setPlayerId(message.playerId);
           // Room code already set from URL - don't override it
+          
+          // Auto-join with saved name if available and not already joined
+          if (!hasAutoJoined.current) {
+            const savedName = localStorage.getItem(`terminal0_player_name_${urlRoomCode}`);
+            if (savedName) {
+              hasAutoJoined.current = true;
+              setTimeout(() => {
+                if (socket.readyState === WebSocket.OPEN) {
+                  socket.send(JSON.stringify({ type: 'JOIN', name: savedName }));
+                }
+              }, 100);
+            }
+          }
         } else if (message.type === 'ERROR') {
           setError(message.message);
         }
@@ -72,6 +88,10 @@ export default function App() {
   const handleJoin = (name: string) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type: 'JOIN', name }));
+      // Save name to localStorage for this room
+      if (roomCode) {
+        localStorage.setItem(`terminal0_player_name_${roomCode}`, name);
+      }
     }
   };
 
@@ -102,9 +122,14 @@ export default function App() {
   };
 
   const handleRegenerateCard = () => {
+    setShowNewCardModal(true);
+  };
+
+  const confirmRegenerateCard = () => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type: 'REGENERATE_CARD' }));
     }
+    setShowNewCardModal(false);
   };
 
   const handleCreateRoom = () => {
@@ -313,6 +338,17 @@ export default function App() {
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showNewCardModal}
+        onConfirm={confirmRegenerateCard}
+        onCancel={() => setShowNewCardModal(false)}
+        title="Reset Your Card?"
+        message="Getting a new card will reset all your marked sightings. This cannot be undone."
+        confirmText="Get New Card"
+        cancelText="Keep Current"
+      />
 
       {/* Footer */}
       <footer className="bg-white/90 backdrop-blur-sm p-3 text-center text-xs text-gray-500">

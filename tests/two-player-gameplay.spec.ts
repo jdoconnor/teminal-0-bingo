@@ -31,22 +31,22 @@ test.describe('Two Player Bingo Game', () => {
     
     // Player 1 enters name
     await player1.fill('input[type="text"]', 'Alice');
-    await player1.click('button:has-text("Enter Terminal")');
+    await player1.click('button:has-text("Join Game")');
     await player1.waitForSelector('text=Alice');
     
     // Player 2 joins the same room using the room code
     await player2.goto(`/#${roomCode}`);
     await player2.waitForSelector('input[type="text"]');
     await player2.fill('input[type="text"]', 'Bob');
-    await player2.click('button:has-text("Enter Terminal")');
+    await player2.click('button:has-text("Join Game")');
     await player2.waitForSelector('text=Bob');
     
-    // Both players should see each other in the Manifest
-    await expect(player1.locator('text=Alice (YOU)')).toBeVisible();
-    await expect(player1.locator('li:has-text("Bob")')).toBeVisible();
+    // Both players should see each other in the Players list
+    await expect(player1.locator('text=Alice (You)')).toBeVisible();
+    await expect(player1.locator('.truncate:has-text("Bob")')).toBeVisible();
     
-    await expect(player2.locator('li:has-text("Alice")')).toBeVisible();
-    await expect(player2.locator('text=Bob (YOU)')).toBeVisible();
+    await expect(player2.locator('.truncate:has-text("Alice")')).toBeVisible();
+    await expect(player2.locator('text=Bob (You)')).toBeVisible();
   });
 
   test('either player can start the game', async () => {
@@ -57,22 +57,22 @@ test.describe('Two Player Bingo Game', () => {
     const roomCode = player1.url().split('#')[1];
     
     await player1.fill('input[type="text"]', 'Alice');
-    await player1.click('button:has-text("Enter Terminal")');
+    await player1.click('button:has-text("Join Game")');
     await player1.waitForSelector('text=Alice');
     
     // Player 2 joins same room
     await player2.goto(`/#${roomCode}`);
     await player2.waitForSelector('input[type="text"]');
     await player2.fill('input[type="text"]', 'Bob');
-    await player2.click('button:has-text("Enter Terminal")');
+    await player2.click('button:has-text("Join Game")');
     await player2.waitForSelector('text=Bob');
     
     // Player 1 starts the game
     await player1.click('button:has-text("Start Game")');
     
-    // Both players should see the game status change to PLAYING
-    await expect(player1.locator('text=PLAYING')).toBeVisible();
-    await expect(player2.locator('text=PLAYING')).toBeVisible();
+    // Both players should see the game status change to Playing
+    await expect(player1.locator('text=🎮 Playing')).toBeVisible();
+    await expect(player2.locator('text=🎮 Playing')).toBeVisible();
     
     // Both should see their bingo cards
     await expect(player1.locator('.grid button').first()).toBeVisible();
@@ -87,14 +87,14 @@ test.describe('Two Player Bingo Game', () => {
     const roomCode = player1.url().split('#')[1];
     
     await player1.fill('input[type="text"]', 'Alice');
-    await player1.click('button:has-text("Enter Terminal")');
+    await player1.click('button:has-text("Join Game")');
     await player1.waitForSelector('text=Alice');
     
     // Player 2 joins same room
     await player2.goto(`/#${roomCode}`);
     await player2.waitForSelector('input[type="text"]');
     await player2.fill('input[type="text"]', 'Bob');
-    await player2.click('button:has-text("Enter Terminal")');
+    await player2.click('button:has-text("Join Game")');
     await player2.waitForSelector('text=Bob');
     
     await player1.click('button:has-text("Start Game")');
@@ -128,14 +128,14 @@ test.describe('Two Player Bingo Game', () => {
     const roomCode = player1.url().split('#')[1];
     
     await player1.fill('input[type="text"]', 'Alice');
-    await player1.click('button:has-text("Enter Terminal")');
+    await player1.click('button:has-text("Join Game")');
     await player1.waitForSelector('text=Alice');
     
     // Player 2 joins same room
     await player2.goto(`/#${roomCode}`);
     await player2.waitForSelector('input[type="text"]');
     await player2.fill('input[type="text"]', 'Bob');
-    await player2.click('button:has-text("Enter Terminal")');
+    await player2.click('button:has-text("Join Game")');
     await player2.waitForSelector('text=Bob');
     
     await player1.click('button:has-text("Start Game")');
@@ -159,14 +159,14 @@ test.describe('Two Player Bingo Game', () => {
     const roomCode = player1.url().split('#')[1];
     
     await player1.fill('input[type="text"]', 'Alice');
-    await player1.click('button:has-text("Enter Terminal")');
+    await player1.click('button:has-text("Join Game")');
     await player1.waitForSelector('text=Alice');
     
     // Player 2 joins same room
     await player2.goto(`/#${roomCode}`);
     await player2.waitForSelector('input[type="text"]');
     await player2.fill('input[type="text"]', 'Bob');
-    await player2.click('button:has-text("Enter Terminal")');
+    await player2.click('button:has-text("Join Game")');
     await player2.waitForSelector('text=Bob');
     
     await player1.click('button:has-text("Start Game")');
@@ -198,14 +198,14 @@ test.describe('Two Player Bingo Game', () => {
     const roomCode = player1.url().split('#')[1];
     
     await player1.fill('input[type="text"]', 'Alice');
-    await player1.click('button:has-text("Enter Terminal")');
+    await player1.click('button:has-text("Join Game")');
     await player1.waitForSelector('text=Alice');
     
     // Player 2 joins same room
     await player2.goto(`/#${roomCode}`);
     await player2.waitForSelector('input[type="text"]');
     await player2.fill('input[type="text"]', 'Bob');
-    await player2.click('button:has-text("Enter Terminal")');
+    await player2.click('button:has-text("Join Game")');
     await player2.waitForSelector('text=Bob');
     
     await player1.click('button:has-text("Start Game")');
@@ -239,14 +239,14 @@ test.describe('Two Player Bingo Game', () => {
     const roomCode = player1.url().split('#')[1];
     
     await player1.fill('input[type="text"]', 'Alice');
-    await player1.click('button:has-text("Enter Terminal")');
+    await player1.click('button:has-text("Join Game")');
     await player1.waitForSelector('text=Alice');
     
     // Player 2 joins same room
     await player2.goto(`/#${roomCode}`);
     await player2.waitForSelector('input[type="text"]');
     await player2.fill('input[type="text"]', 'Bob');
-    await player2.click('button:has-text("Enter Terminal")');
+    await player2.click('button:has-text("Join Game")');
     await player2.waitForSelector('text=Bob');
     
     // Start game
@@ -268,6 +268,28 @@ test.describe('Two Player Bingo Game', () => {
     // In a real scenario, you'd trigger a win condition first
   });
 
+  test('player name persists on page refresh', async () => {
+    // Player 1 creates room
+    await player1.goto('/');
+    await player1.click('button:has-text("Create New Game")');
+    await player1.waitForSelector('input[type="text"]');
+    const roomUrl = player1.url();
+    
+    await player1.fill('input[type="text"]', 'Alice');
+    await player1.click('button:has-text("Join Game")');
+    await player1.waitForSelector('text=Alice');
+    
+    // Refresh the page
+    await player1.reload();
+    await player1.waitForTimeout(1000);
+    
+    // Should auto-join with saved name
+    await player1.waitForSelector('.font-bold.text-gray-800:has-text("Alice")', { timeout: 5000 });
+    
+    // Should not see lobby input
+    await expect(player1.locator('input[type="text"]')).not.toBeVisible();
+  });
+
   test('game state syncs across both players in real-time', async () => {
     // Player 1 creates room
     await player1.goto('/');
@@ -276,14 +298,14 @@ test.describe('Two Player Bingo Game', () => {
     const roomCode = player1.url().split('#')[1];
     
     await player1.fill('input[type="text"]', 'Alice');
-    await player1.click('button:has-text("Enter Terminal")');
+    await player1.click('button:has-text("Join Game")');
     await player1.waitForSelector('text=Alice');
     
     // Player 2 joins same room
     await player2.goto(`/#${roomCode}`);
     await player2.waitForSelector('input[type="text"]');
     await player2.fill('input[type="text"]', 'Bob');
-    await player2.click('button:has-text("Enter Terminal")');
+    await player2.click('button:has-text("Join Game")');
     await player2.waitForSelector('text=Bob');
     
     // Verify both see WAITING status (use specific selector to avoid strict mode violation)

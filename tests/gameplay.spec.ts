@@ -102,7 +102,7 @@ test.describe('Terminal 0 Bingo - Full Gameplay Tests', () => {
     await expect(player2.locator('text=👥 2')).toBeVisible();
   });
 
-  test('user can re-join their own game after disconnect', async () => {
+  test('user can re-join their own game after disconnect with saved name', async () => {
     // Player 1 creates and joins a room
     await player1.goto('/');
     await player1.click('button:has-text("Create New Game")');
@@ -123,29 +123,21 @@ test.describe('Terminal 0 Bingo - Full Gameplay Tests', () => {
     await firstTile.click();
     await player1.waitForTimeout(500);
     
-    // Simulate disconnect by navigating away
-    await player1.goto('about:blank');
+    // Simulate page refresh (localStorage persists)
+    await player1.reload();
     await player1.waitForTimeout(1000);
     
-    // Re-join by going back to the same room URL
-    await player1.goto(roomUrl);
-    
-    // Should see lobby again (new connection)
-    await player1.waitForSelector('input[type="text"]');
-    await player1.fill('input[type="text"]', 'Alice');
-    await player1.click('button:has-text("Join Game")');
-    
-    // Should be back in the game
-    await player1.waitForSelector('.font-bold.text-gray-800:has-text("Alice")');
+    // Should auto-join with saved name - no lobby should appear
+    // Wait for the player name to appear in header
+    await player1.waitForSelector('.font-bold.text-gray-800:has-text("Alice")', { timeout: 5000 });
     await expect(player1.locator(`text=${roomCode}`)).toBeVisible();
     
-    // Game state may have reset after disconnect, so just verify we're connected
-    // The game may be in waiting state if it reset when player disconnected
+    // Should be back in the game automatically
     const statusElement = player1.locator('.text-pink-700, .text-purple-700');
     await expect(statusElement.first()).toBeVisible();
   });
 
-  test('regenerate card only affects the user who pressed the button', async () => {
+  test('regenerate card shows confirmation modal and only affects the user who pressed the button', async () => {
     // Player 1 creates room
     await player1.goto('/');
     await player1.click('button:has-text("Create New Game")');
@@ -185,8 +177,15 @@ test.describe('Terminal 0 Bingo - Full Gameplay Tests', () => {
       player2InitialCards.push(text || '');
     }
     
-    // Player 1 regenerates their card
+    // Player 1 clicks regenerate card button
     await player1.click('button:has-text("New Card")');
+    
+    // Should see confirmation modal
+    await expect(player1.locator('text=Reset Your Card?')).toBeVisible();
+    await expect(player1.locator('text=Getting a new card will reset all your marked sightings')).toBeVisible();
+    
+    // Confirm the regeneration
+    await player1.click('button:has-text("Get New Card")');
     await player1.waitForTimeout(1000);
     
     // Get Player 1's new card items
@@ -208,6 +207,104 @@ test.describe('Terminal 0 Bingo - Full Gameplay Tests', () => {
     
     // Player 2's card should remain the same
     expect(player2CurrentCards).toEqual(player2InitialCards);
+  });
+
+  test('new card modal can be cancelled without regenerating', async () => {
+    // Player 1 creates and joins
+    await player1.goto('/');
+    await player1.click('button:has-text("Create New Game")');
+    await player1.waitForURL(/\/#[A-Z0-9]{4}/);
+    
+    await player1.fill('input[type="text"]', 'Alice');
+    await player1.click('button:has-text("Join Game")');
+    await player1.waitForSelector('text=Alice');
+    
+    // Start the game
+    await player1.click('button:has-text("Start Game")');
+    await expect(player1.locator('text=🎮 Playing')).toBeVisible();
+    
+    await player1.waitForTimeout(1000);
+    
+    // Get initial card
+    const tiles = player1.locator('.grid button');
+    const initialCards: string[] = [];
+    for (let i = 0; i < 25; i++) {
+      const text = await tiles.nth(i).textContent();
+      initialCards.push(text || '');
+    }
+    
+    // Click New Card button
+    await player1.click('button:has-text("New Card")');
+    
+    // Should see confirmation modal
+    await expect(player1.locator('text=Reset Your Card?')).toBeVisible();
+    
+    // Click cancel
+    await player1.click('button:has-text("Keep Current")');
+    
+    // Modal should close
+    await expect(player1.locator('text=Reset Your Card?')).not.toBeVisible();
+    
+    // Card should remain unchanged
+    const currentCards: string[] = [];
+    for (let i = 0; i < 25; i++) {
+      const text = await tiles.nth(i).textContent();
+      currentCards.push(text || '');
+    }
+    
+    expect(currentCards).toEqual(initialCards);
+  });
+
+  test('second player joining does not reset first player selections', async () => {
+    // Player 1 creates and joins
+    await player1.goto('/');
+    await player1.click('button:has-text("Create New Game")');
+    await player1.waitForURL(/\/#[A-Z0-9]{4}/);
+    const roomCode = player1.url().split('#')[1];
+    
+    await player1.fill('input[type="text"]', 'Alice');
+    await player1.click('button:has-text("Join Game")');
+    await player1.waitForSelector('text=Alice');
+    
+    // Start the game
+    await player1.click('button:has-text("Start Game")');
+    await expect(player1.locator('text=🎮 Playing')).toBeVisible();
+    
+    await player1.waitForTimeout(1000);
+    
+    // Player 1 marks several tiles
+    const player1Tiles = player1.locator('.grid button');
+    await player1Tiles.nth(0).click();
+    await player1.waitForTimeout(300);
+    await player1Tiles.nth(1).click();
+    await player1.waitForTimeout(300);
+    await player1Tiles.nth(2).click();
+    await player1.waitForTimeout(300);
+    
+    // Verify tiles are marked (pink gradient with checkmark)
+    await expect(player1Tiles.nth(0)).toHaveClass(/from-pink-400/);
+    await expect(player1Tiles.nth(1)).toHaveClass(/from-pink-400/);
+    await expect(player1Tiles.nth(2)).toHaveClass(/from-pink-400/);
+    
+    // Player 2 joins the game
+    await player2.goto(`/#${roomCode}`);
+    await player2.waitForSelector('input[type="text"]');
+    await player2.fill('input[type="text"]', 'Bob');
+    await player2.click('button:has-text("Join Game")');
+    await player2.waitForSelector('text=Bob');
+    
+    // Wait for state to sync
+    await player1.waitForTimeout(1000);
+    
+    // Player 1's marked tiles should STILL be marked (not reset)
+    await expect(player1Tiles.nth(0)).toHaveClass(/from-pink-400/);
+    await expect(player1Tiles.nth(1)).toHaveClass(/from-pink-400/);
+    await expect(player1Tiles.nth(2)).toHaveClass(/from-pink-400/);
+    
+    // Verify checkmarks are still visible
+    await expect(player1Tiles.nth(0).locator('text=✓')).toBeVisible();
+    await expect(player1Tiles.nth(1).locator('text=✓')).toBeVisible();
+    await expect(player1Tiles.nth(2).locator('text=✓')).toBeVisible();
   });
 
   test('tapping on a card tile marks it as seen', async () => {

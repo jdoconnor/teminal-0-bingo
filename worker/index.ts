@@ -241,20 +241,39 @@ export class GameRoom extends DurableObject<Env> {
       return;
     }
 
+    // Store previous status before changing it
+    const wasEnded = this.gameState.status === 'ended';
+    
     this.gameState.status = 'playing';
     this.gameState.winner = null;
 
+    // Only regenerate cards for players who don't have cards yet or if restarting from ended
     this.gameState.players = this.gameState.players.map(player => {
-      const card = generateCard();
-      const marked = new Array(25).fill(false);
-      marked[12] = true; // Center tile is free
-      return {
-        ...player,
-        card,
-        marked,
-        seen: [card[12]], // Center tile (index 12) is free
-        hasBingo: false,
-      };
+      // If game was ended, regenerate all cards. Otherwise, only generate for new players without cards
+      const shouldRegenerateCard = wasEnded || !player.card || player.card.length === 0;
+      
+      if (shouldRegenerateCard) {
+        const card = generateCard();
+        const marked = new Array(25).fill(false);
+        marked[12] = true; // Center tile is free
+        return {
+          ...player,
+          card,
+          marked,
+          seen: [card[12]], // Center tile (index 12) is free
+          hasBingo: false,
+        };
+      }
+      
+      // Keep existing card but ensure center is marked if not already
+      if (!player.marked[12]) {
+        player.marked[12] = true;
+        if (!player.seen.includes(player.card[12])) {
+          player.seen.push(player.card[12]);
+        }
+      }
+      
+      return player;
     });
 
     await this.persistAndBroadcast();
