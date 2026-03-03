@@ -143,16 +143,22 @@ test.describe('Two Player Bingo Game', () => {
     // With new toggle mechanics, all tiles are clickable
     // Click a tile to mark it as seen
     const firstTile = player1.locator('.grid button').first();
-    await firstTile.click();
     
-    // Verify it's now marked (pink gradient background)
-    await expect(firstTile).toHaveClass(/from-pink-400/);
+    // Initially should not show checkmark
+    await expect(firstTile.locator('text=✓')).not.toBeVisible();
+    
+    await firstTile.click();
+    await player1.waitForTimeout(300);
+    
+    // Verify it's now marked (shows checkmark)
+    await expect(firstTile.locator('text=✓')).toBeVisible();
 
     // Click again to unmark it
     await firstTile.click();
+    await player1.waitForTimeout(300);
 
-    // Verify it's unmarked (blue gradient background)
-    await expect(firstTile).toHaveClass(/from-blue-100/);
+    // Verify it's unmarked (no checkmark)
+    await expect(firstTile.locator('text=✓')).not.toBeVisible();
   });
 
   test('can toggle items as seen/unseen', async () => {
@@ -178,16 +184,22 @@ test.describe('Two Player Bingo Game', () => {
     // With new toggle mechanics, all tiles are clickable
     // Click a tile to mark it as seen
     const firstTile = player1.locator('.grid button').first();
-    await firstTile.click();
     
-    // Verify it's now marked (pink gradient background)
-    await expect(firstTile).toHaveClass(/from-pink-400/);
+    // Initially should not show checkmark
+    await expect(firstTile.locator('text=✓')).not.toBeVisible();
+    
+    await firstTile.click();
+    await player1.waitForTimeout(300);
+    
+    // Verify it's now marked (shows checkmark)
+    await expect(firstTile.locator('text=✓')).toBeVisible();
 
     // Click again to unmark it
     await firstTile.click();
+    await player1.waitForTimeout(300);
 
-    // Verify it's unmarked (blue gradient background)
-    await expect(firstTile).toHaveClass(/from-blue-100/);
+    // Verify it's unmarked (no checkmark)
+    await expect(firstTile.locator('text=✓')).not.toBeVisible();
   });
 
   test('winner announcement appears for both players', async () => {

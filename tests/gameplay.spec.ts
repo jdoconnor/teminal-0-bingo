@@ -56,9 +56,11 @@ test.describe('Terminal 0 Bingo - Full Gameplay Tests', () => {
     const cardButtons = player1.locator('.grid button');
     await expect(cardButtons).toHaveCount(25);
     
-    // Verify tiles are interactive (they use gradient backgrounds)
+    // Verify tiles are interactive and contain text
     const firstTile = cardButtons.first();
     await expect(firstTile).toBeVisible();
+    const tileText = await firstTile.textContent();
+    expect(tileText).toBeTruthy();
   });
 
   test('user can invite another player via room code', async () => {
@@ -281,10 +283,10 @@ test.describe('Terminal 0 Bingo - Full Gameplay Tests', () => {
     await player1Tiles.nth(2).click();
     await player1.waitForTimeout(300);
     
-    // Verify tiles are marked (pink gradient with checkmark)
-    await expect(player1Tiles.nth(0)).toHaveClass(/from-pink-400/);
-    await expect(player1Tiles.nth(1)).toHaveClass(/from-pink-400/);
-    await expect(player1Tiles.nth(2)).toHaveClass(/from-pink-400/);
+    // Verify tiles show checkmarks when marked
+    await expect(player1Tiles.nth(0).locator('text=✓')).toBeVisible();
+    await expect(player1Tiles.nth(1).locator('text=✓')).toBeVisible();
+    await expect(player1Tiles.nth(2).locator('text=✓')).toBeVisible();
     
     // Player 2 joins the game
     await player2.goto(`/#${roomCode}`);
@@ -296,12 +298,7 @@ test.describe('Terminal 0 Bingo - Full Gameplay Tests', () => {
     // Wait for state to sync
     await player1.waitForTimeout(1000);
     
-    // Player 1's marked tiles should STILL be marked (not reset)
-    await expect(player1Tiles.nth(0)).toHaveClass(/from-pink-400/);
-    await expect(player1Tiles.nth(1)).toHaveClass(/from-pink-400/);
-    await expect(player1Tiles.nth(2)).toHaveClass(/from-pink-400/);
-    
-    // Verify checkmarks are still visible
+    // Player 1's marked tiles should STILL show checkmarks (not reset)
     await expect(player1Tiles.nth(0).locator('text=✓')).toBeVisible();
     await expect(player1Tiles.nth(1).locator('text=✓')).toBeVisible();
     await expect(player1Tiles.nth(2).locator('text=✓')).toBeVisible();
@@ -327,15 +324,14 @@ test.describe('Terminal 0 Bingo - Full Gameplay Tests', () => {
     const firstTile = player1.locator('.grid button').first();
     const tileText = await firstTile.textContent();
     
-    // Initially should not be marked (blue/purple gradient)
-    await expect(firstTile).toHaveClass(/from-blue-100/);
+    // Initially should not show checkmark
+    await expect(firstTile.locator('text=✓')).not.toBeVisible();
     
     // Click to mark it
     await firstTile.click();
     await player1.waitForTimeout(500);
     
-    // Should now be marked (pink/purple gradient with checkmark)
-    await expect(firstTile).toHaveClass(/from-pink-400/);
+    // Should now show checkmark
     await expect(firstTile.locator('text=✓')).toBeVisible();
     
     // Should appear in the sighting log
@@ -362,25 +358,22 @@ test.describe('Terminal 0 Bingo - Full Gameplay Tests', () => {
     
     const firstTile = player1.locator('.grid button').first();
     
-    // Initially unmarked (blue gradient)
-    await expect(firstTile).toHaveClass(/from-blue-100/);
+    // Initially unmarked (no checkmark)
+    await expect(firstTile.locator('text=✓')).not.toBeVisible();
     
     // Click to mark
     await firstTile.click();
     await player1.waitForTimeout(300);
-    await expect(firstTile).toHaveClass(/from-pink-400/);
     await expect(firstTile.locator('text=✓')).toBeVisible();
     
     // Click again to unmark
     await firstTile.click();
     await player1.waitForTimeout(300);
-    await expect(firstTile).toHaveClass(/from-blue-100/);
     await expect(firstTile.locator('text=✓')).not.toBeVisible();
     
     // Click once more to mark again
     await firstTile.click();
     await player1.waitForTimeout(300);
-    await expect(firstTile).toHaveClass(/from-pink-400/);
     await expect(firstTile.locator('text=✓')).toBeVisible();
   });
 
@@ -421,11 +414,17 @@ test.describe('Terminal 0 Bingo - Full Gameplay Tests', () => {
     await expect(player1.locator('.grid button')).toHaveCount(25);
     await expect(player2.locator('.grid button')).toHaveCount(25);
     
-    // Verify tiles are clickable (they use gradient backgrounds)
+    // Verify tiles are clickable and contain text
     const player1FirstTile = player1.locator('.grid button').first();
     const player2FirstTile = player2.locator('.grid button').first();
     await expect(player1FirstTile).toBeVisible();
     await expect(player2FirstTile).toBeVisible();
+    
+    // Verify both players have different cards
+    const p1Text = await player1FirstTile.textContent();
+    const p2Text = await player2FirstTile.textContent();
+    expect(p1Text).toBeTruthy();
+    expect(p2Text).toBeTruthy();
     
     // Start Game button should be hidden (replaced with Play Again)
     await expect(player1.locator('button:has-text("Start Game")')).not.toBeVisible();

@@ -27,18 +27,25 @@
 terminal-0-bingo/
 ├── src/
 │   ├── App.tsx              # Main React app, WebSocket client logic
-│   ├── types.ts             # Shared TypeScript types, SIGHTINGS array
+│   ├── types.ts             # Shared TypeScript types, SIGHTINGS arrays
 │   ├── components/
+│   │   ├── RoomSelector.tsx # Room creation/join screen
 │   │   ├── Lobby.tsx        # Player name entry screen
 │   │   ├── BingoCard.tsx    # 5x5 interactive bingo grid
-│   │   └── GameLog.tsx      # Scrolling list of called items
+│   │   ├── GameLog.tsx      # Scrolling list of seen items
+│   │   └── ConfirmModal.tsx # Confirmation dialog component
 │   ├── main.tsx             # React entry point
 │   └── index.css            # Global styles
 ├── worker/
 │   └── index.ts             # Cloudflare Worker + GameRoom Durable Object
+├── tests/
+│   ├── gameplay.spec.ts     # Comprehensive gameplay tests
+│   └── two-player-gameplay.spec.ts  # Two-player interaction tests
 ├── vite.config.ts           # Vite configuration with Cloudflare plugin
+├── playwright.config.ts     # Playwright test configuration
 ├── package.json             # Dependencies and scripts
-└── README.md                # Setup and deployment instructions
+├── README.md                # Setup and deployment instructions
+└── AGENTS.md                # This file - comprehensive project documentation
 ```
 
 ### Key Components
@@ -52,68 +59,78 @@ terminal-0-bingo/
 
 **WebSocket Flow:**
 ```
-Client connects → Server sends WELCOME with playerId
-Client sends JOIN → Server adds player to game
-Client sends START → Server begins game (no auto-calling)
-Client sends CALL_ITEM → Server calls random uncalled item
+Client connects to /ws/{roomCode} → Server sends WELCOME with playerId + roomCode
+Client sends JOIN → Server adds player to game with random card
+Client sends START → Server begins game, marks center tiles as free
+Client sends TOGGLE_SEEN → Server toggles item in player's seen list
+Server updates marked array → Server checks for bingo
 Server broadcasts STATE_UPDATE → All clients re-render
-Client sends MARK → Server validates and checks for bingo
+Client sends REGENERATE_CARD → Server generates new card for that player only
 ```
 
 #### 2. **Backend (`worker/index.ts`)**
-- **Main Worker**: Routes WebSocket upgrades to GameRoom Durable Object, serves static assets
-- **GameRoom Durable Object**: Single global instance (`idFromName('global')`) manages all game state
-  - Persists state to Durable Object storage
+- **Main Worker**: Routes WebSocket upgrades to GameRoom Durable Object by room code, serves static assets
+- **GameRoom Durable Object**: One instance per room code (`idFromName(roomCode)`) manages game state
+  - Persists state to Durable Object storage with 48-hour expiration
   - Broadcasts state changes to all connected WebSocket clients
-  - Handles manual item calling via CALL_ITEM messages
+  - Handles player toggling items as seen/unseen
 
 **State Management:**
-- All players share one global game room
+- Each room has isolated game state in its Durable Object
 - State persisted to Durable Object storage on every change
 - When last player disconnects, state resets to initial
+- Player names saved to localStorage per room for auto-rejoin
 
 #### 3. **Shared Types (`src/types.ts`)**
 - `GameState`: `status`, `players`, `winner`, `roomCode`, `createdAt`
-- `Player`: `id`, `name`, `card` (25 strings), `marked` (25 booleans), `seen` items, `hasBingo`
+- `Player`: `id`, `name`, `card` (25 strings), `marked` (25 booleans), `seen` (string array), `hasBingo`
 - `ClientMessage`: `JOIN`, `MARK`, `TOGGLE_SEEN`, `START`, `REGENERATE_CARD`
 - `ServerMessage`: `STATE_UPDATE`, `ERROR`, `WELCOME` (includes `playerId` + `roomCode`)
-- `Sightings`: categorized arrays (`LOOKS`, `BEHAVIOR`, `SMELL`, `OBJECT`) combined via `ALL_SIGHTINGS`
+- `Sightings`: categorized arrays (`LOOKS_SIGHTINGS`, `BEHAVIOR_SIGHTINGS`, `SMELL_SIGHTINGS`, `OBJECT_SIGHTINGS`) with 100+ items each, combined via `ALL_SIGHTINGS`
 
 ---
 
 ## Game Flow
 
-### 1. **Connection & Join**
-1. Player opens app → WebSocket connects to server
-2. Server sends `WELCOME` with unique `playerId` (UUID)
-3. Server sends initial `STATE_UPDATE` with current game state
-4. Player enters name in Lobby → sends `JOIN` message
-5. Server creates Player object with random 25-item card, adds to `gameState.players`
-6. Server broadcasts updated state to all clients
+### 1. **Room Selection & Connection**
+1. Player opens app → sees RoomSelector component
+2. Player can:
+   - Create new room → generates 4-character code (e.g., `ABC1`), sets URL hash, reloads
+   - Join existing room → enters 4-character code, sets URL hash, reloads
+3. App reads room code from URL hash (`window.location.hash`)
+4. WebSocket connects to `/ws/{roomCode}`
+5. Server sends `WELCOME` with unique `playerId` (UUID) and `roomCode`
+6. Server sends initial `STATE_UPDATE` with current game state
+7. If player has saved name in localStorage for this room, auto-joins
+8. Otherwise, player enters name in Lobby → sends `JOIN` message
+9. Server creates Player object with random 25-item card, adds to `gameState.players`
+10. Server broadcasts updated state to all clients
 
 ### 2. **Starting the Game**
 1. Any player clicks "Start Game" → sends `START` message
 2. Server:
    - Sets `status` to `'playing'`
    - Resets `winner`
-   - Generates new random cards for all players
-   - Center tile (index 12) is automatically marked as "free space"
+   - If game was `ended`, regenerates new random cards for all players
+   - If game was `waiting`, keeps existing cards (players may have already marked items)
+   - Center tile (index 12) is automatically marked as "free space" for all players
+   - Center item added to each player's `seen` array
 3. Server broadcasts updated state
-4. Players can now tap any tile on their card to mark it as seen
+4. Players can now tap any tile on their card to toggle it as seen/unseen
 
 ### 3. **Gameplay Loop**
 1. Players tap any tile on their bingo card → sends `TOGGLE_SEEN` message with item text
 2. Server toggles item in player's `seen` array:
    - If item already in `seen`, remove it (mark as unseen)
    - If item not in `seen`, add it (mark as seen)
-3. Server updates `marked` array based on which card items are in `seen`
+3. Server updates `marked` array: for each card position, mark as true if that item is in `seen`
 4. Server checks for bingo (row/column/diagonal)
 5. If bingo detected:
    - Set `player.hasBingo = true`
    - Set `gameState.winner = player.name`
    - Set `status = 'ended'`
 6. Server broadcasts state → all clients update
-7. Sighting log shows all items marked as seen by any player
+7. GameLog component shows all items marked as seen by any player, with player names
 
 ### 4. **Winning & Reset**
 1. Winner overlay appears for all players
@@ -124,16 +141,25 @@ Client sends MARK → Server validates and checks for bingo
 
 ## Multiplayer Mechanics
 
+### Multi-Room Architecture
+- Each room has a unique 4-character code (e.g., `ABC1`, `XYZ9`)
+- Room codes use characters: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no confusing chars)
+- Each room is a separate Durable Object instance
+- Rooms expire after 48 hours of inactivity
+- Players can share room URL or room code to invite others
+
 ### Two-Player Scenario (Verified)
-1. **Player A** connects → receives playerId `abc-123`
-2. **Player B** connects → receives playerId `def-456`
-3. Both join with names → both see each other in "Manifest" sidebar
-4. Either player starts game → both receive new cards simultaneously
-5. Any player calls items manually → both see same called items in real-time
-6. Players mark their own cards independently
-7. First to complete a pattern wins → both see winner announcement
-8. Either player can regenerate thier own card. it does not affect other players' cards
-9. Either player can restart → both get new cards
+1. **Player A** creates room → gets room code `ABC1`
+2. **Player A** shares code with **Player B**
+3. **Player B** joins room `ABC1` via RoomSelector
+4. Both connect to same Durable Object instance
+5. Both join with names → both see each other in "Players" sidebar
+6. Either player starts game → both receive cards (or keep existing if already generated)
+7. Players tap tiles to mark items as seen → both see updates in GameLog in real-time
+8. Players mark their own cards independently (different cards)
+9. First to complete a pattern wins → both see winner announcement
+10. Either player can regenerate their own card ("New Card" button) → only affects that player
+11. Either player can restart → both get new cards and game resets
 
 ### State Synchronization
 - Single source of truth: GameRoom Durable Object
@@ -164,11 +190,11 @@ Client sends MARK → Server validates and checks for bingo
 - New cards generated on every game start/restart
 
 ### Marking Rules
-- Players can only mark items that have been called
-- Once marked, cells cannot be unmarked
+- Players can toggle any item on their card as seen/unseen at any time during gameplay
+- No restriction on which items can be marked (player-driven gameplay)
+- Tiles can be toggled on/off repeatedly
 - Disabled states:
   - Game not in `'playing'` status
-  - Item not yet called
   - Player already has bingo
 
 ---
@@ -300,11 +326,11 @@ The game is designed for manual calling. To add automatic calling:
 - Card generation: O(1) shuffle, negligible overhead
 
 ### Scalability
-- Current design: Single global game room (all players in one game)
-- To support multiple concurrent games:
-  - Use room codes instead of `idFromName('global')`
-  - Add lobby system to create/join rooms
-  - Modify worker to route to different Durable Object instances
+- Current design: Multiple concurrent rooms via 4-character codes
+- Each room is a separate Durable Object instance
+- Rooms are isolated from each other
+- No global state or cross-room communication
+- Cloudflare Workers scale automatically to handle many concurrent rooms
 
 ---
 
@@ -329,30 +355,181 @@ The game is designed for manual calling. To add automatic calling:
 
 ---
 
-## Testing Checklist
+## Testing
 
-### Manual Testing for Two Players
-- [ ] Both players can connect simultaneously
-- [ ] Both players see each other in Manifest
-- [ ] Either player can start the game
-- [ ] Players can manually call items using "Call Next Sighting" button
-- [ ] Both players see the same called items
-- [ ] Players can mark their own cards independently
-- [ ] Marking an uncalled item does nothing
-- [ ] First player to complete a pattern wins
-- [ ] Winner announcement appears for both players
+### Testing Philosophy
+
+**Focus on Behavior and Content, Not Styles**
+- Tests should verify **what the user sees and can do**, not how it looks
+- Avoid testing CSS classes, colors, gradients, or visual styling
+- Test for presence of text content, buttons, and interactive elements
+- Test for correct game state transitions and data flow
+- Test for multiplayer synchronization and real-time updates
+
+**Use Chrome DevTools MCP for Verification**
+- When writing new tests, use the `chrome-devtools` MCP server to:
+  - Take snapshots of the page to verify content is present
+  - Interact with elements using `uid` from snapshots
+  - Verify text content and element visibility
+  - Check network requests and console messages
+  - Debug test failures by inspecting actual page state
+
+### Test Framework
+- **Tool**: Playwright with TypeScript
+- **Location**: `tests/` directory
+- **Run**: `pnpm test` (headless), `pnpm test:headed` (visible), `pnpm test:ui` (interactive)
+- **Configuration**: `playwright.config.ts`
+
+### Writing Tests
+
+#### Good Test Practices ✅
+```typescript
+// ✅ Test for text content
+await expect(page.locator('text=Terminal 0 Bingo')).toBeVisible();
+
+// ✅ Test for button functionality
+await page.click('button:has-text("Start Game")');
+
+// ✅ Test for game state
+await expect(page.locator('text=🎮 Playing')).toBeVisible();
+
+// ✅ Test for element count
+await expect(page.locator('.grid button')).toHaveCount(25);
+
+// ✅ Test for data synchronization
+const tileText = await firstTile.textContent();
+await expect(player2.locator(`text=${tileText}`)).toBeVisible();
+```
+
+#### Bad Test Practices ❌
+```typescript
+// ❌ Don't test CSS classes for styling
+await expect(tile).toHaveClass(/from-pink-400/);
+
+// ❌ Don't test colors or gradients
+await expect(element).toHaveCSS('background', 'linear-gradient(...)');
+
+// ❌ Don't test specific font sizes or spacing
+await expect(element).toHaveCSS('font-size', '16px');
+
+// ❌ Don't test animation states
+await expect(element).toHaveClass(/animate-pulse/);
+```
+
+### Test Coverage
+
+#### Room Management
+- [ ] User can create a new room with 4-character code
+- [ ] User can join existing room by entering code
+- [ ] Room code appears in URL hash
+- [ ] Room code is displayed in header
+- [ ] Share button copies room URL to clipboard
+- [ ] Invalid room codes are rejected
+
+#### Player Connection & Join
+- [ ] Player receives unique ID on connection
+- [ ] Player can enter name and join game
+- [ ] Player name is saved to localStorage per room
+- [ ] Player auto-rejoins on page refresh with saved name
+- [ ] Multiple players can join same room
+- [ ] All players see each other in Players list
+- [ ] Player count updates correctly
+
+#### Game Start
+- [ ] Any player can start the game from waiting state
+- [ ] Game status changes to "Playing" for all players
+- [ ] All players receive bingo cards (25 tiles each)
+- [ ] Center tile (index 12) is pre-marked as free space
+- [ ] Cards are different for each player
+- [ ] Starting from "ended" state regenerates all cards
+- [ ] Starting from "waiting" state keeps existing cards
+
+#### Gameplay - Marking Tiles
+- [ ] Players can tap any tile to mark it as seen
+- [ ] Tapping a marked tile unmarks it (toggle behavior)
+- [ ] Marked tiles show checkmark (✓)
+- [ ] Marked items appear in GameLog for all players
+- [ ] GameLog shows which player marked each item
+- [ ] Multiple players can mark same item independently
+- [ ] Tiles are disabled when game is not playing
+- [ ] Tiles are disabled when player has bingo
+
+#### Winning & Restart
+- [ ] First player to complete a row wins
+- [ ] First player to complete a column wins
+- [ ] First player to complete a diagonal wins
+- [ ] Winner overlay appears for all players
+- [ ] Winner's name is displayed correctly
+- [ ] Game status changes to "Ended"
 - [ ] Either player can restart the game
-- [ ] New cards are generated on restart
-- [ ] Player disconnect removes them from Manifest
-- [ ] Last player disconnect resets game state
+- [ ] Restart generates new cards for all players
+- [ ] Restart resets all marked items
 
-### Edge Cases
-- [ ] Starting game with 0 players (should be prevented by UI)
-- [ ] Starting game while already playing (should be no-op)
-- [ ] Marking same cell twice (should be no-op)
-- [ ] All 50 items called without winner (game ends)
-- [ ] Rapid clicking during network lag
-- [ ] Multiple players achieving bingo simultaneously (first processed wins)
+#### Card Regeneration
+- [ ] Player can click "New Card" button during waiting/playing
+- [ ] Confirmation modal appears before regenerating
+- [ ] Confirming regenerates only that player's card
+- [ ] Other players' cards are not affected
+- [ ] Canceling modal keeps current card
+- [ ] Regenerated card has different items
+- [ ] Regeneration resets that player's marked items
+
+#### State Synchronization
+- [ ] All state changes broadcast to all connected players
+- [ ] Players see real-time updates when others mark items
+- [ ] Players see real-time updates when others join/leave
+- [ ] Players see real-time updates when game starts/ends
+- [ ] WebSocket reconnection works after disconnect
+
+#### Disconnect Handling
+- [ ] Player disconnect removes them from Players list
+- [ ] Last player disconnect resets game state
+- [ ] Reconnecting player must rejoin (new ID assigned)
+- [ ] Game continues if some players disconnect
+
+#### Edge Cases
+- [ ] Second player joining doesn't reset first player's marks
+- [ ] Rapid clicking doesn't cause duplicate marks
+- [ ] Multiple players achieving bingo simultaneously (first wins)
+- [ ] Page refresh maintains room connection
+- [ ] Invalid WebSocket messages are handled gracefully
+
+### Using Chrome DevTools MCP in Tests
+
+When writing or debugging tests, use the Chrome DevTools MCP to verify page state:
+
+```typescript
+// Example: Verify page content using MCP
+test('verify game board content', async ({ page }) => {
+  await page.goto('/#ABC1');
+  
+  // Use MCP to take snapshot and verify content
+  // This helps identify correct selectors and verify text content
+  // without relying on CSS classes or styling
+});
+```
+
+**MCP Tools Available:**
+- `mcp0_take_snapshot`: Get text representation of page elements
+- `mcp0_click`: Click elements by UID from snapshot
+- `mcp0_fill`: Fill form inputs
+- `mcp0_navigate_page`: Navigate to URLs
+- `mcp0_list_console_messages`: Check for errors
+- `mcp0_list_network_requests`: Verify API calls
+
+### Manual Testing Checklist
+
+For features not yet covered by automated tests:
+
+- [ ] Mobile responsiveness (primary use case)
+- [ ] Touch interactions on mobile devices
+- [ ] Share button on mobile (Web Share API)
+- [ ] Clipboard fallback when Web Share unavailable
+- [ ] Visual polish and animations
+- [ ] Accessibility (keyboard navigation, screen readers)
+- [ ] Performance with many players (10+ in one room)
+- [ ] Long-running games (multiple hours)
+- [ ] Room expiration after 48 hours
 
 ---
 
